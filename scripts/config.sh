@@ -137,7 +137,7 @@ copy_idl_types() {
   echo "Copied to $dest_type"
   cp ../target/idl/hastra_sol_vault_mint.json "$dest_idl"
   # add TS const to top of IDL file
-  sed -i '' '1s/^/export const HastraSolVaultStake = /' "$dest_idl"
+  sed -i '' '1s/^/export const HastraSolVaultMint = /' "$dest_idl"
   echo "Copied to $dest_idl"
 }
 build_program() {
