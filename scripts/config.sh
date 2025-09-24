@@ -44,7 +44,6 @@ if [ ! -f "$HISTORY_FILE" ]; then
   touch "$HISTORY_FILE"
 fi
 
-
 show_current_settings() {
   echo ""
   echo "Current settings in $HISTORY_FILE:"
@@ -57,7 +56,6 @@ show_current_settings() {
   done
   echo ""
 
-
 }
 
 show_current_settings
@@ -68,6 +66,26 @@ case "$SOLANA_NETWORK" in
   testnet) SOLANA_URL="https://api.testnet.solana.com" ;;
   *) echo "Invalid network"; exit 1 ;;
 esac
+
+# get the keypair from solana config
+CONFIG_FILE="$HOME/.config/solana/cli/config.yml"
+if [ -f "$CONFIG_FILE" ]; then
+  SOLANA_KEYPAIR=$(grep 'keypair_path:' "$CONFIG_FILE" | awk '{print $2}')
+  if [ -z "$KEYPAIR" ]; then
+    KEYPAIR="$SOLANA_KEYPAIR"
+    update_history_var "KEYPAIR"
+  fi
+fi
+
+prompt_with_default KEYPAIR "Enter path to Solana wallet keypair"
+
+if [ -z "$VAULT_MINT" ]; then
+  prompt_with_default VAULT_MINT "Enter Vault Token Mint address (the token accepted for swap)"
+fi
+
+if [ -z "$VAULT_TOKEN_ACCOUNT" ]; then
+  prompt_with_default VAULT_TOKEN_ACCOUNT "Enter Vault Token Account (account that holds the Vault Mint token on deposit)"
+fi
 
 export ANCHOR_PROVIDER_URL="$SOLANA_URL"
 export ANCHOR_WALLET="$KEYPAIR"
@@ -119,7 +137,7 @@ copy_idl_types() {
   echo "Copied to $dest_type"
   cp ../target/idl/hastra_sol_vault_mint.json "$dest_idl"
   # add TS const to top of IDL file
-  sed -i '' '1s/^/export const SolVaultStake = /' "$dest_idl"
+  sed -i '' '1s/^/export const HastraSolVaultStake = /' "$dest_idl"
   echo "Copied to $dest_idl"
 }
 build_program() {
@@ -130,7 +148,7 @@ build_program() {
 deploy_program() {
   echo "Deploying Program..."
   echo "Getting Program ID..."
-  PROGRAM_ID=$(solana-keygen pubkey /Users/jd/provenanceio/git/sol-vault-mint/target/deploy/hastra_sol_vault_mint-keypair.json)
+  PROGRAM_ID=$(solana-keygen pubkey ../target/deploy/hastra_sol_vault_mint-keypair.json)
   update_history_var "PROGRAM_ID"
   # Update lib.rs declare_id:
   PROGRAM_FILE="../programs/hastra-sol-vault-mint/src/lib.rs"
@@ -154,24 +172,29 @@ build_and_deploy() {
 }
 
 initialize_program() {
+  if [ -z "$FREEZE_ADMINISTRATORS" ]; then
+    prompt_with_default FREEZE_ADMINISTRATORS "Enter comma-separated list of Freeze Administrator addresses"
+  fi
+  if [ -z "$REWARDS_ADMINISTRATORS" ]; then
+    prompt_with_default REWARDS_ADMINISTRATORS "Enter comma-separated list of Rewards Administrator addresses"
+  fi
+
   INITIALIZE=$(
     yarn run ts-node scripts/initialize.ts \
     --vault "$VAULT_MINT" \
     --vault_token_account "$VAULT_TOKEN_ACCOUNT" \
     --mint "$MINT_TOKEN" \
-    --unbonding_period "$UNBONDING_PERIOD" \
     --freeze_administrators "$FREEZE_ADMINISTRATORS" \
     --rewards_administrators "$REWARDS_ADMINISTRATORS")
 
   echo "$INITIALIZE"
-  VAULT_AUTHORITY_PDA=$(echo $INITIALIZE | grep -oE 'Vault Authority PDA: ([A-Za-z0-9]+)' | awk '{print $NF}')
   CONFIG_PDA=$(echo $INITIALIZE | grep -oE 'Config PDA: ([A-Za-z0-9]+)' | awk '{print $NF}')
   MINT_AUTHORITY_PDA=$(echo $INITIALIZE | grep -oE 'Mint Authority PDA: ([A-Za-z0-9]+)' | awk '{print $NF}')
   FREEZE_AUTHORITY_PDA=$(echo $INITIALIZE | grep -oE 'Freeze Authority PDA: ([A-Za-z0-9]+)' | awk '{print $NF}')
 
   update_history_var "CONFIG_PDA"
   update_history_var "MINT_AUTHORITY_PDA"
-  update_history_var "VAULT_AUTHORITY_PDA"
+  update_history_var "FREEZE_AUTHORITY_PDA"
 }
 
 build_deploy_initialize() {
@@ -185,6 +208,16 @@ update_solana_config() {
 }
 
 setup_metaplex() {
+  if [ -z "$METAPLEX_NAME" ]; then
+    prompt_with_default METAPLEX_NAME "Enter Metaplex Token Name"
+  fi
+  if [ -z "$METAPLEX_SYMBOL" ]; then
+    prompt_with_default METAPLEX_SYMBOL "Enter Metaplex Token Symbol"
+  fi
+  if [ -z "$METAPLEX_META_URL" ]; then
+    prompt_with_default METAPLEX_META_URL "Enter Metaplex Token Metadata URL (must be a valid JSON URL)"
+  fi
+
   yarn run ts-node scripts/register_meta.ts \
     --mint "$MINT_TOKEN" \
     --keypair "$KEYPAIR" \
@@ -194,6 +227,16 @@ setup_metaplex() {
 }
 
 update_metaplex() {
+  if [ -z "$METAPLEX_NAME" ]; then
+    prompt_with_default METAPLEX_NAME "Enter Metaplex Token Name"
+  fi
+  if [ -z "$METAPLEX_SYMBOL" ]; then
+    prompt_with_default METAPLEX_SYMBOL "Enter Metaplex Token Symbol"
+  fi
+  if [ -z "$METAPLEX_META_URL" ]; then
+    prompt_with_default METAPLEX_META_URL "Enter Metaplex Token Metadata URL (must be a valid JSON URL)"
+  fi
+
   yarn run ts-node scripts/register_meta.ts \
     --mint "$MINT_TOKEN" \
     --keypair "$KEYPAIR" \
@@ -213,24 +256,19 @@ set_mint_and_freeze_authority() {
   spl-token authorize "$MINT_TOKEN" freeze "$FREEZE_AUTHORITY_PDA" \
     --url "$SOLANA_URL" \
     --authority "$KEYPAIR"
-
-    update_history_var "MINT_AUTHORITY_PDA"
-    update_history_var "FREEZE_AUTHORITY_PDA"
 }
 
 show_accounts_and_pdas() {
   echo ""
   echo "Program ID:                         $PROGRAM_ID"
   echo "Vault Token (accepted token):       $VAULT_MINT"
-  echo "Mint Token (staking token minted):  $MINT_TOKEN"
+  echo "Mint Token (token minted):          $MINT_TOKEN"
   echo "Vault Token Authority Account:      $VAULT_TOKEN_ACCOUNT"
   echo "Config PDA:                         $CONFIG_PDA"
   echo "Mint Authority PDA:                 $MINT_AUTHORITY_PDA"
   echo "Freeze Authority PDA:               $FREEZE_AUTHORITY_PDA"
-  echo "Vault Token Authority PDA:          $VAULT_AUTHORITY_PDA"
   echo "Freeze Administrators:              $FREEZE_ADMINISTRATORS"
   echo "Rewards Administrators:             $REWARDS_ADMINISTRATORS"
-  echo "Unbonding Period (in seconds):      $UNBONDING_PERIOD"
 
   # get the mint token mint authority and freeze authority
   echo ""
@@ -257,12 +295,6 @@ update_freeze_authority() {
       --new_authority "$FREEZE_AUTHORITY"
 }
 
-update_unbonding_period() {
-  prompt_with_default UNBONDING_PERIOD "Enter new Unbonding Period (in seconds)"
-  yarn run ts-node scripts/update_config.ts \
-      --unbonding_period "$UNBONDING_PERIOD"
-}
-
 while true; do
   MY_KEY=$(solana-keygen pubkey "$KEYPAIR")
   PROGRAM_ID=$(grep -oE 'declare_id!\("([A-Za-z0-9]+)"\);' ../programs/sol-vault-mint/src/lib.rs | grep -oE '\"([A-Za-z0-9]+)\"' | tr -d '"')
@@ -286,11 +318,9 @@ while true; do
     "Update Metaplex" \
     "Show Accounts & PDAs" \
     "Show Current Settings" \
-    "Update Unbonding Period" \
     "Update Mint Authority" \
     "Update Freeze Authority" \
     "Create Mint Token" \
-    "Create Vault Token Accounts" \
     "Reset and Set New Program ID" \
     "Exit"
   do
@@ -303,13 +333,11 @@ while true; do
       6) update_metaplex; break ;;
       7) show_accounts_and_pdas; break ;;
       8) show_current_settings; break ;;
-      9) update_unbonding_period; break ;;
-      10) update_mint_authority; break ;;
-      11) update_freeze_authority; break ;;
-      12) create_mint_token; break ;;
-      13) create_vault_token_accounts; break ;;
-      14) set_new_program_id; break ;;
-      15) exit 0 ;;
+      9) update_mint_authority; break ;;
+      10) update_freeze_authority; break ;;
+      11) create_mint_token; break ;;
+      12) set_new_program_id; break ;;
+      13) exit 0 ;;
       *) echo "Invalid option"; break ;;
     esac
   done

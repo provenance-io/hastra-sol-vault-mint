@@ -1,5 +1,5 @@
 pub mod account_structs;
-/// # Sol Vault Mint - Token Staking System
+/// # Sol Vault Mint - Token Deposit and Minting Program with Rewards
 ///
 /// ## Business Process Flow
 ///
@@ -8,7 +8,7 @@ pub mod account_structs;
 ///    - Admin initializes program with token addresses
 ///    - Admin configures vault token account to hold deposited tokens
 ///
-/// 2. User Staking Flow:
+/// 2. User Deposit Flow:
 ///    a. Deposit Phase:
 ///       - User deposits vault tokens (USDC)
 ///       - System securely stores tokens in vault account
@@ -34,7 +34,7 @@ pub mod state;
 use account_structs::*;
 use anchor_lang::prelude::*;
 
-declare_id!("FhqGQTSwE9JZqWevkMHw3SHAt9st4vfDdbZZsyXcoKm6");
+declare_id!("DyB1GKA83V8byG11QfwxZWdysbvVo5ySqjvwGZ471rqs");
 
 #[program]
 pub mod hastra_sol_vault_mint {
@@ -120,7 +120,7 @@ pub mod hastra_sol_vault_mint {
     /// 	•	Store each epoch’s Merkle root in a PDA.
     /// 	•	When a user claims, they present (amount, proof) for their pubkey.
     /// 	•	The program verifies the Merkle proof against the root.
-    /// 	•	If valid, transfer reward tokens (sYLDS) from the rewards vault to the user's staking mint token account.
+    /// 	•	If valid, transfer reward tokens (wYLDS) from the rewards vault to the user's mint token account.
     /// 	•	Mark the claim as redeemed so they can’t double-claim.
     pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<[u8; 32]>) -> Result<()> {
         processor::claim_rewards(ctx, amount, proof)

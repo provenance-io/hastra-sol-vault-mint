@@ -25,7 +25,7 @@ const args = yargs(process.argv.slice(2))
     })
     .option("mint", {
         type: "string",
-        description: "Token that will be minted (e.g. sYLDS) upon validation of the claim proof",
+        description: "Token that will be minted (e.g. wYLDS) upon validation of the claim proof",
         required: true,
     })
     .option("amount", {
@@ -102,7 +102,7 @@ const main = async () => {
             claimRecord: claimPda,
             mintAuthority: mintAuthorityPda,
             mint: mint,
-            userStakeTokenAccount: tokenAccount,
+            userMintTokenAccount: tokenAccount,
             systemProgram: anchor.web3.SystemProgram.programId,
             tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID
         })

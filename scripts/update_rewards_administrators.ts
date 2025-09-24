@@ -12,7 +12,7 @@ const program = anchor.workspace.HastraSolVaultMint as Program<HastraSolVaultMin
 const args = yargs(process.argv.slice(2))
     .option("rewards_administrators", {
         type: "string",
-        description: "Comma separated list of administrator public keys that can initiate user staking rewards",
+        description: "Comma separated list of administrator public keys that can initiate user rewards distribution",
         required: true,
     })
     .parseSync();

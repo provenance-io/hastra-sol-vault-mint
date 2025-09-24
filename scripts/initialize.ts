@@ -37,7 +37,7 @@ const args = yargs(process.argv.slice(2))
     })
     .option("rewards_administrators", {
         type: "string",
-        description: "Comma separated list of administrator public keys that can execute user staking distribution rewards.",
+        description: "Comma separated list of administrator public keys that can execute user distribution rewards.",
         required: true,
     })
 
@@ -46,10 +46,6 @@ const args = yargs(process.argv.slice(2))
 const main = async () => {
     const [configPda, bump] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("config")],
-        program.programId
-    );
-    const [vaultAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("vault_authority")],
         program.programId
     );
     const [mintAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -77,7 +73,6 @@ const main = async () => {
     console.log("Mint (token to be minted):", mint.toBase58());
     console.log("Vault Token Account:", vaultTokenAccount.toBase58());
     console.log("Config PDA:", configPda.toBase58());
-    console.log("Vault Authority PDA:", vaultAuthorityPda.toBase58());
     console.log("Mint Authority PDA:", mintAuthorityPda.toBase58());
     console.log("Freeze Authority PDA:", freezeAuthorityPda.toBase58());
     console.log("Freeze Administrators:", freezeAdministrators.map((a) => a.toBase58()));

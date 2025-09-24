@@ -25,26 +25,6 @@ pub fn initialize(
     config.rewards_administrators = rewards_administrators;
     config.bump = ctx.bumps.config;
 
-    // The vault token account must be owned by the program-derived address (PDA)
-    // and is the token account that holds the deposited vault tokens (e.g., wYLDS).
-    // This ensures that only the program can move tokens out of this account.
-    // Only set vault token account to PDA authority if it's not already set to vault_authority
-    if ctx.accounts.vault_token_account.owner == ctx.accounts.signer.key() {
-        let seeds: &[&[u8]] = &[b"vault_authority", &[ctx.bumps.vault_authority]];
-        let signer = &[&seeds[..]];
-        token::set_authority(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                token::SetAuthority {
-                    account_or_mint: ctx.accounts.vault_token_account.to_account_info(),
-                    current_authority: ctx.accounts.signer.to_account_info(),
-                },
-                signer,
-            ),
-            AuthorityType::AccountOwner,
-            Some(ctx.accounts.vault_authority.key()),
-        )?;
-    }
     Ok(())
 }
 
@@ -98,6 +78,7 @@ pub fn redeem(ctx: Context<Redeem>, amount: u64) -> Result<()> {
         amount,
     )?;
 
+    // TODO - this won't work here as the vault token account is not owned by the program
     let seeds: &[&[u8]] = &[b"vault_authority", &[ctx.bumps.vault_authority]];
     let signer = &[&seeds[..]];
     let transfer_accounts = Transfer {

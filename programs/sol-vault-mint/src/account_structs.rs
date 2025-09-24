@@ -18,23 +18,9 @@ pub struct Initialize<'info> {
     )]
     pub config: Account<'info, Config>,
 
-    /// CHECK: This is a PDA that acts as vault authority, validated by seeds constraint
-    /// This PDA will be set as the owner of the vault_token_account in the config
-    /// The vault token account holds the deposited vault tokens (e.g., wYLDS)
-    /// and is controlled by this program via the vault_authority PDA
-    /// This ensures that only this program can move tokens out of the vault
-    /// and prevents unauthorized access.
-    #[account(
-        seeds = [b"vault_authority"],
-        bump
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-
-    /// The vault token account that should be owned by vault_authority
     #[account(
         mut,
-        constraint = vault_token_account.mint == vault_mint.key() @ CustomErrorCode::InvalidMint,
-        constraint = (vault_token_account.owner == signer.key() || vault_token_account.owner == vault_authority.key()) @ CustomErrorCode::InvalidAuthority
+        constraint = vault_token_account.mint == vault_mint.key() @ CustomErrorCode::InvalidMint
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 

@@ -122,7 +122,6 @@ This design ensures that yield generated from vault tokens is fairly distributed
 
 **Account Structure:**
 - `Config`: Program settings and administrator lists
-- `UnbondingTicket`: Tracks user withdrawal requests with timestamps
 - `RewardsEpoch`: Manages reward distribution with merkle proofs
 - `ClaimRecord`: Prevents reward double-spending
 
@@ -140,13 +139,12 @@ hastra-sol-vault-mint/
 │           ├── lib.rs                    # Main program entry point
 │           ├── account_structs.rs        # Anchor account validation structs
 │           ├── processor.rs              # Core business logic implementation
-│           ├── state.rs                  # Program data structures (Config, UnbondingTicket, etc.)
+│           ├── state.rs                  # Program data structures (Config, etc.)
 │           ├── error.rs                  # Custom error definitions
 │           └── guard.rs                  # Authorization validators
 ├── scripts/
 │   ├── config.sh                        # Interactive deployment & management script
 │   ├── deposit.ts                       # Deposit vault tokens for mint tokens
-│   ├── unbond.ts                        # Initiate withdrawal process
 │   ├── redeem.ts                        # Complete withdrawal after unbonding period
 │   ├── update_config.ts                 # Modify program configuration
 │   ├── update_mint_authority.ts         # Change mint authority ownership
@@ -172,7 +170,7 @@ hastra-sol-vault-mint/
 
 **TypeScript Scripts** (`scripts/`):
 - **Deployment Tools**: Automated setup and configuration management
-- **User Operations**: Deposit, unbond, redeem, and claim workflows
+- **User Operations**: Deposit, redeem, and claim workflows
 - **Admin Functions**: Program updates and authority management
 
 **Generated Assets** (`target/`):
@@ -325,7 +323,6 @@ This is where you get to set:
 * Vault Token: The token (e.g. USDC) that is accepted from the user in exchange for the minted token.
 * Vault Token Account: The token account that will hold the vaulted tokens when users deposit them in exchange for mint tokens. This token account must be created prior to calling initialize (see above). The authority of this token account will be set to the PDA of the program at initialization time.
 * Mint Token: The token (e.g. wYLDS) that will be minted and transferred to the user
-* Unbonding Period: The unbonding period (in seconds) defines how long a user must hold mint tokens, after requesting an unbond, before they can redeem them for vault tokens. After the unbonding period has elapsed the user can call the redeem function to burn the mint tokens and receive vault tokens back.
 
 ```bash
 $ ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
@@ -333,8 +330,7 @@ $ ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
   yarn run ts-node scripts/initialize.ts \
   --vault EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v \
   --vault_token_account D3j4cPrzyhcFZTjZfG1zvioLbkH58Vnpbv3mBaYLVxfx \
-  --mint AVpS6aTBQyCFBA4jymYRWqDyL7ipurn24PZVdjbbWT3X \
-  --unbonding_period 1814400
+  --mint AVpS6aTBQyCFBA4jymYRWqDyL7ipurn24PZVdjbbWT3X
 ```
 
 > IMPORTANT: After initialization, the mint authority of the mint token must be set to the `Mint Authority PDA` output by the `initialize` script. THIS SHOULD BE DONE AFTER SETTING UP THE TOKEN IN METAPLEX.

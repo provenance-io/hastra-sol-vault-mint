@@ -9,25 +9,29 @@ anchor.setProvider(provider);
 const program = anchor.workspace.HastraSolVaultMint as Program<HastraSolVaultMint>;
 
 const args = yargs(process.argv.slice(2))
-    .option("mint", {
-        type: "string",
-        description: "The staking mint token that will be burned (e.g. sYLDS) at redeem.",
+    .option("amount", {
+        type: "number",
+        description: "The amount of mint token that will be redeemed.",
         required: true,
     })
-
+    .option("mint", {
+        type: "string",
+        description: "The mint token that will be burned (e.g. wYLDS) at redeem.",
+        required: true,
+    })
     .option("vault_token_account", {
         type: "string",
-        description: "Vault Token Account that holds the Vault Token (e.g. wYLDS)",
+        description: "Vault Token Account that holds the Vault Token (e.g. USDC)",
         required: true,
     })
     .option("user_vault_token_account", {
         type: "string",
-        description: "User's vault token account address where the vaulted tokens will be sent to. Must be associated token account for the vault token (e.g. wYLDS)",
+        description: "User's vault token account address where the vaulted tokens will be sent to. Must be associated token account for the vault token (e.g. USDC)",
         required: true,
     })
     .option("user_mint_token_account", {
         type: "string",
-        description: "User's mint token account address where the staking mint tokens (e.g. sYLDS) will be burned. Must be associated token account for the mint token (e.g. sYLDS)",
+        description: "User's mint token account address where the mint tokens (e.g. wYLDS) will be burned. Must be associated token account for the mint token (e.g. wYLDS)",
         required: true,
     })
 
@@ -54,14 +58,14 @@ const main = async () => {
     const userMintTokenAccount = new anchor.web3.PublicKey(args.user_mint_token_account);
 
     console.log(`Signer: ${mint.toBase58()}`);
-    console.log(`Mint (token to be burned e.g. sYLDS): ${mint.toBase58()}`);
-    console.log(`Vault Token Account (e.g. wYLDS): ${vaultTokenAccount.toBase58()}`);
+    console.log(`Mint (token to be burned e.g. wYLDS): ${mint.toBase58()}`);
+    console.log(`Vault Token Account (e.g. USDC): ${vaultTokenAccount.toBase58()}`);
     console.log(`User Vault Token Account: ${userVaultTokenAccount.toBase58()}`);
     console.log(`Config PDA: ${configPda.toBase58()}`);
     console.log(`Vault Authority PDA: ${vaultAuthorityPda.toBase58()}`);
 
     const tx = await program.methods
-        .redeem()
+        .redeem(new anchor.BN(args.amount))
         .accountsStrict({
             config: configPda,
             vaultTokenAccount: vaultTokenAccount,
@@ -71,7 +75,6 @@ const main = async () => {
             userMintTokenAccount: userMintTokenAccount,
             mint: mint,
             tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-            ticket: anchor.web3.Keypair.generate().publicKey, // Temporary, will be created in the program
         }).rpc();
 
     console.log("Transaction:", tx);
