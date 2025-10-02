@@ -6,11 +6,13 @@ pub struct Config {
     pub mint: Pubkey,
     pub freeze_administrators: Vec<Pubkey>,
     pub rewards_administrators: Vec<Pubkey>,
+    pub vault_authority: Pubkey,
+    pub redeem_vault: Pubkey,
     pub bump: u8,
 }
 
 impl Config {
-    pub const LEN: usize = 8 + 32 + 32 + (32 * 5) +  (32 * 5) + 1; // max of 5 administrators
+    pub const LEN: usize = 8 + 1 + 32 + 32 + (32 * 5) +  (32 * 5) + 32 + 32 + 32; // max of 5 administrators
 }
 
 #[account]
@@ -25,3 +27,16 @@ impl RewardsEpoch { pub const LEN: usize = 8 + 8 + 32 + 8 + 8; }
 #[account]
 pub struct ClaimRecord {}      // empty marker account, existence = already claimed
 impl ClaimRecord { pub const LEN: usize = 8; }
+
+#[account]
+pub struct RedemptionRequest {
+    pub user: Pubkey,
+    pub amount: u64,
+    pub vault_mint: Pubkey,
+    pub mint: Pubkey,
+    pub bump: u8,
+}
+
+impl RedemptionRequest {
+    pub const LEN: usize = 32 + 8 + 32 + 32 + 1; // 106 bytes
+}
