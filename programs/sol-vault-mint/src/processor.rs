@@ -14,7 +14,6 @@ pub fn initialize(
     freeze_administrators: Vec<Pubkey>,
     rewards_administrators: Vec<Pubkey>,
 ) -> Result<()> {
-
     msg!("Initializing with vault_mint: {}", vault_mint);
     msg!("Vault mint account: {}", ctx.accounts.vault_mint.key());
 
@@ -37,20 +36,23 @@ pub fn initialize(
     // Only set vault token account to PDA authority if it's not already set to vault_authority
 
     if ctx.accounts.redeem_vault_token_account.owner == ctx.accounts.signer.key() {
-       let seeds: &[&[u8]] = &[b"redeem_vault_authority", &[ctx.bumps.redeem_vault_authority]];
-       let signer = &[&seeds[..]];
-       token::set_authority(
-           CpiContext::new_with_signer(
-               ctx.accounts.token_program.to_account_info(),
-               token::SetAuthority {
-                   account_or_mint: ctx.accounts.redeem_vault_token_account.to_account_info(),
-                   current_authority: ctx.accounts.signer.to_account_info(),
-               },
-               signer,
-           ),
-           AuthorityType::AccountOwner,
-           Some(ctx.accounts.redeem_vault_authority.key()),
-       )?;
+        let seeds: &[&[u8]] = &[
+            b"redeem_vault_authority",
+            &[ctx.bumps.redeem_vault_authority],
+        ];
+        let signer = &[&seeds[..]];
+        token::set_authority(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::SetAuthority {
+                    account_or_mint: ctx.accounts.redeem_vault_token_account.to_account_info(),
+                    current_authority: ctx.accounts.signer.to_account_info(),
+                },
+                signer,
+            ),
+            AuthorityType::AccountOwner,
+            Some(ctx.accounts.redeem_vault_authority.key()),
+        )?;
     }
 
     Ok(())
@@ -100,6 +102,28 @@ pub fn request_redeem(ctx: Context<RequestRedeem>, amount: u64) -> Result<()> {
     let user_balance = ctx.accounts.user_mint_token_account.amount;
     require!(user_balance >= amount, CustomErrorCode::InsufficientBalance);
 
+    let vault_balance = ctx.accounts.redeem_vault_authority.lamports();
+    require!(
+        vault_balance > 100_000, // ~0.0001 SOL buffer
+        CustomErrorCode::InsufficientRedeemVaultFunds
+    );
+
+    msg!("RequestRedeem user account balance: {}", user_balance);
+
+    // Set burn authority to the redeem vault authority PDA so it can burn tokens later
+    token::approve(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            token::Approve {
+                to: ctx.accounts.user_mint_token_account.to_account_info(),
+                delegate: ctx.accounts.redeem_vault_authority.to_account_info(),
+                authority: ctx.accounts.signer.to_account_info(),
+            },
+        ),
+        amount,
+    )?;
+
+    msg!("Emitting RedemptionRequested event");
     emit!(RedemptionRequested {
         user: ctx.accounts.signer.key(),
         amount,
@@ -107,6 +131,7 @@ pub fn request_redeem(ctx: Context<RequestRedeem>, amount: u64) -> Result<()> {
         mint: ctx.accounts.config.mint,
     });
 
+    msg!("recording redemption request");
     // Record the request (creates a lock on the user)
     let request = &mut ctx.accounts.redemption_request;
     request.user = ctx.accounts.signer.key();
@@ -115,54 +140,77 @@ pub fn request_redeem(ctx: Context<RequestRedeem>, amount: u64) -> Result<()> {
     request.mint = ctx.accounts.config.mint;
     request.bump = ctx.bumps.redemption_request;
 
+    msg!("done with request redeem");
     Ok(())
 }
 
 pub fn complete_redeem(ctx: Context<CompleteRedeem>) -> Result<()> {
-    // Only rewards administrators can call this
+    // Admin gate
     require!(
-        ctx.accounts.config.rewards_administrators.contains(&ctx.accounts.admin.key()),
+        ctx.accounts
+            .config
+            .rewards_administrators
+            .contains(&ctx.accounts.admin.key()),
         CustomErrorCode::InvalidRewardsAdministrator
     );
 
-    let request = &mut ctx.accounts.redemption_request;
+    let req = &ctx.accounts.redemption_request;
 
-    // Use minimum of user's current balance or original requested amount
+    // amount_to_redeem = min(user wYLDS balance, requested)
     let user_mint_balance = ctx.accounts.user_mint_token_account.amount;
-    let amount_to_redeem = std::cmp::min(user_mint_balance, request.amount);
+    let amount_to_redeem = std::cmp::min(user_mint_balance, req.amount);
     require!(amount_to_redeem > 0, CustomErrorCode::InvalidAmount);
 
-    let vault_balance = ctx.accounts.redeem_vault_token_account.amount;
-    require!(vault_balance >= amount_to_redeem, CustomErrorCode::InsufficientVaultBalance);
+    // check vault has enough USDC
+    require!(
+        ctx.accounts.redeem_vault_token_account.amount >= amount_to_redeem,
+        CustomErrorCode::InsufficientVaultBalance
+    );
 
-    // Burn mint tokens from user
-    let burn_accounts = Burn {
-        mint: ctx.accounts.mint.to_account_info(),
-        from: ctx.accounts.user_mint_token_account.to_account_info(),
-        authority: ctx.accounts.user.to_account_info(),
-    };
-    token::burn(
-        CpiContext::new(ctx.accounts.token_program.to_account_info(), burn_accounts),
-        amount_to_redeem,
-    )?;
-
-    // Transfer vault mint (e.g. USDC) from redemption vault to user
-    let seeds: &[&[u8]] = &[b"redeem_vault_authority", &[ctx.bumps.redeem_vault_authority]];
+    // signer seeds for the PDA
+    let seeds: &[&[u8]] = &[
+        b"redeem_vault_authority",
+        &[ctx.bumps.redeem_vault_authority],
+    ];
     let signer = &[&seeds[..]];
-    let transfer_accounts = Transfer {
-        from: ctx.accounts.redeem_vault_token_account.to_account_info(),
-        to: ctx.accounts.user_vault_token_account.to_account_info(),
-        authority: ctx.accounts.redeem_vault_authority.to_account_info(),
-    };
-    token::transfer(
+
+    // Burn user's wYLDS using PDA as delegate
+    token::burn(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
-            transfer_accounts,
+            token::Burn {
+                mint: ctx.accounts.mint.to_account_info(),
+                from: ctx.accounts.user_mint_token_account.to_account_info(),
+                authority: ctx.accounts.redeem_vault_authority.to_account_info(),
+            },
             signer,
         ),
         amount_to_redeem,
     )?;
 
+    // Transfer USDC from redeem vault to user (PDA is authority)
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            token::Transfer {
+                from: ctx.accounts.redeem_vault_token_account.to_account_info(),
+                to: ctx.accounts.user_vault_token_account.to_account_info(),
+                authority: ctx.accounts.redeem_vault_authority.to_account_info(),
+            },
+            signer,
+        ),
+        amount_to_redeem,
+    )?;
+
+    emit!(RedeemCompleted {
+        user: ctx.accounts.user.key(),
+        admin: ctx.accounts.admin.key(),
+        amount: amount_to_redeem,
+        mint: ctx.accounts.mint.key(),
+        vault: ctx.accounts.redeem_vault_token_account.mint,
+    });
+
+    // Anchor will auto-close redemption_request to `user` per the accounts attr
     Ok(())
 }
 

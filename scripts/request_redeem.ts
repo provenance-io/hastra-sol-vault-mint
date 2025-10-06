@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import yargs from "yargs";
 import {Program} from "@coral-xyz/anchor";
 import {HastraSolVaultMint} from "../target/types/hastra_sol_vault_mint";
-import {SystemProgram} from "@solana/web3.js";
+import {PublicKey, SystemProgram} from "@solana/web3.js";
 import {getAssociatedTokenAddress} from "@solana/spl-token";
 
 const provider = anchor.AnchorProvider.env();
@@ -40,6 +40,11 @@ const main = async () => {
 
     // Program args
     const mint = new anchor.web3.PublicKey(args.mint);
+    const [redeemVaultAuthorityPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("redeem_vault_authority")],
+        program.programId
+    );
+
     // Get user's mint token account
     const userMintTokenAccount = await getAssociatedTokenAddress(
         mint,
@@ -52,6 +57,7 @@ const main = async () => {
     console.log(`User Mint Token Account: ${userMintTokenAccount.toBase58()}`);
     console.log(`Config PDA: ${configPda.toBase58()}`);
     console.log(`Redemption Request PDA: ${redemptionRequestPda.toBase58()}`);
+    console.log(`Redeem Vault Authority PDA: ${redeemVaultAuthorityPda.toBase58()}`);
 
     const tx = await program.methods
         .requestRedeem(new anchor.BN(args.amount))
@@ -62,6 +68,8 @@ const main = async () => {
             mint: mint,
             config: configPda,
             systemProgram: SystemProgram.programId,
+            tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+            redeemVaultAuthority: redeemVaultAuthorityPda
         }).rpc();
 
     console.log("Transaction:", tx);

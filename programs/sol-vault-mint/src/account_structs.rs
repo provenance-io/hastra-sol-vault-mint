@@ -319,12 +319,15 @@ pub struct ClaimRewards<'info> {
 pub struct RequestRedeem<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
+
     #[account(
         mut,
         constraint = user_mint_token_account.mint == mint.key() @ CustomErrorCode::InvalidMint,
-        constraint = user_mint_token_account.owner == signer.key() @ CustomErrorCode::InvalidTokenOwner)
-    ]
+        constraint = user_mint_token_account.owner == signer.key() @ CustomErrorCode::InvalidTokenOwner
+    )]
     pub user_mint_token_account: Account<'info, TokenAccount>,
+
+    // NOTE: payer is the user (signer), NOT the PDA
     #[account(
         init,
         payer = signer,
@@ -333,53 +336,73 @@ pub struct RequestRedeem<'info> {
         bump
     )]
     pub redemption_request: Account<'info, RedemptionRequest>,
+
+    /// CHECK: PDA delegate/authority; NOT a signer, NOT a payer
+    #[account(
+        seeds = [b"redeem_vault_authority"],
+        bump
+    )]
+    pub redeem_vault_authority: AccountInfo<'info>,
+
     #[account(constraint = mint.key() == config.mint)]
     pub mint: Account<'info, Mint>,
+
     #[account(seeds = [b"config"], bump)]
     pub config: Account<'info, Config>,
+
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
 pub struct CompleteRedeem<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
-    /// CHECK: User account for the redemption request
-    pub user: AccountInfo<'info>,
-    #[account(
-        mut,
-        constraint = user_mint_token_account.owner == user.key() @ CustomErrorCode::InvalidTokenOwner,
-        constraint = user_mint_token_account.mint == config.mint @ CustomErrorCode::InvalidMint
-    )]
-    pub user_mint_token_account: Account<'info, TokenAccount>,
-    #[account(
-        mut,
-        constraint = user_vault_token_account.owner == user.key() @ CustomErrorCode::InvalidTokenOwner,
-        constraint = user_vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint
-    )]
-    pub user_vault_token_account: Account<'info, TokenAccount>,
 
+    /// The original user (to validate and to receive close rent)
+    /// (Not required to be a signer here.)
+    /// must be writeable to close the account = user will transfer rent to user
+    #[account(mut)]
+    pub user: SystemAccount<'info>,
+    
     #[account(
         mut,
-        constraint = redeem_vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint,
-        constraint = redeem_vault_token_account.owner == redeem_vault_authority.key() @ CustomErrorCode::InvalidVaultAuthority
-    )]
-    pub redeem_vault_token_account: Account<'info, TokenAccount>,
-
-    #[account(
-        mut,
+        close = user,   // refund rent to the original user
         seeds = [b"redemption_request", user.key().as_ref()],
-        bump = redemption_request.bump,
-        close = user,
-        constraint = redemption_request.user == user.key()
+        bump = redemption_request.bump
+        // optionally: has_one = user,
     )]
     pub redemption_request: Account<'info, RedemptionRequest>,
-    #[account(constraint = mint.key() == config.mint)]
-    pub mint: Account<'info, Mint>,
-    /// CHECK: Redeem vault authority PDA
-    #[account(seeds = [b"redeem_vault_authority"], bump)]
+
+    #[account(mut)]
+    pub user_mint_token_account: Account<'info, TokenAccount>,     // wYLDS
+
+    #[account(
+        mut
+    )]
+    pub user_vault_token_account: Account<'info, TokenAccount>,    // USDC dest
+
+    #[account(
+        mut
+    )]
+    pub redeem_vault_token_account: Account<'info, TokenAccount>,  // USDC source
+
+    #[account(
+        mut,
+        constraint = mint.key() == redemption_request.mint,
+        constraint = mint.key() == config.mint @ CustomErrorCode::InvalidMint
+    )]
+    pub mint: Account<'info, Mint>,                                 // wYLDS mint
+
+    /// CHECK: PDA authority (delegate & vault authority)
+    #[account(
+        seeds = [b"redeem_vault_authority"],
+        bump
+    )]
     pub redeem_vault_authority: AccountInfo<'info>,
 
+    #[account(seeds = [b"config"], bump)]
     pub config: Account<'info, Config>,
+
     pub token_program: Program<'info, Token>,
 }

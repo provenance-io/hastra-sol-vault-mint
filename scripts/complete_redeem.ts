@@ -21,9 +21,14 @@ const args = yargs(process.argv.slice(2))
         description: "The mint token that will be burned (e.g. wYLDS).",
         required: true,
     })
-    .option("vaultMint", {
+    .option("vault_mint", {
         type: "string",
         description: "The vault mint token (e.g. USDC) to transfer to user.",
+        required: true,
+    })
+    .option("redeem_vault_token_account", {
+        type: "string",
+        description: "Token account that will hold vaulted asset (e.g. USDC) used for redemptions.",
         required: true,
     })
     .parseSync();
@@ -32,7 +37,8 @@ const main = async () => {
     const admin = provider.wallet.publicKey;
     const user = new PublicKey(args.user);
     const mint = new PublicKey(args.mint);
-    const vaultMint = new PublicKey(args.vaultMint);
+    const vaultMint = new PublicKey(args.vault_mint);
+    const redeemVaultTokenAccount = new PublicKey(args.redeem_vault_token_account);
 
     // Derive PDAs
     const [configPda] = anchor.web3.PublicKey.findProgramAddressSync(
@@ -53,15 +59,17 @@ const main = async () => {
     // Get token accounts
     const userMintTokenAccount = await getAssociatedTokenAddress(mint, user);
     const userVaultTokenAccount = await getAssociatedTokenAddress(vaultMint, user);
-    const redeemVaultTokenAccount = await getAssociatedTokenAddress(vaultMint, redeemVaultAuthorityPda, true);
 
-    console.log(`Admin: ${admin.toBase58()}`);
-    console.log(`User: ${user.toBase58()}`);
-    console.log(`Mint: ${mint.toBase58()}`);
-    console.log(`Vault Mint: ${vaultMint.toBase58()}`);
-    console.log(`Config PDA: ${configPda.toBase58()}`);
-    console.log(`Redemption Request PDA: ${redemptionRequestPda.toBase58()}`);
-    console.log(`Redeem Vault Authority PDA: ${redeemVaultAuthorityPda.toBase58()}`);
+    console.log(`Admin:                         ${admin.toBase58()}`);
+    console.log(`User:                          ${user.toBase58()}`);
+    console.log(`User Mint Token Account:       ${userMintTokenAccount.toBase58()}`);
+    console.log(`User Vault Token Account:      ${userVaultTokenAccount.toBase58()}`);
+    console.log(`Mint:                          ${mint.toBase58()}`);
+    console.log(`Vault Mint:                    ${vaultMint.toBase58()}`);
+    console.log(`Config PDA:                    ${configPda.toBase58()}`);
+    console.log(`Redeem Vault Token Account:    ${redeemVaultTokenAccount.toBase58()}`);
+    console.log(`Redemption Request PDA:        ${redemptionRequestPda.toBase58()}`);
+    console.log(`Redeem Vault Authority PDA:    ${redeemVaultAuthorityPda.toBase58()}`);
 
     const tx = await program.methods
         .completeRedeem() // Amount is calculated in the function

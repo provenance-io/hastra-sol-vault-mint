@@ -59,7 +59,7 @@ const main = async () => {
         program.programId
     );
 
-    const [redeemVaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
+    const [redeemVaultAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("redeem_vault_authority")],
         program.programId
     );
@@ -88,7 +88,7 @@ const main = async () => {
     console.log("Freeze Administrators:", freezeAdministrators.map((a) => a.toBase58()));
     console.log("Rewards Administrators:", rewardsAdministrators.map((a) => a.toBase58()));
     console.log("Redeem Vault Token Account:", redeemVaultTokenAccount.toBase58());
-    console.log("Redeem Vault Authority PDA:", redeemVaultPda.toBase58());
+    console.log("Redeem Vault Authority PDA:", redeemVaultAuthorityPda.toBase58());
 
     // Call initialize
     await program.methods
