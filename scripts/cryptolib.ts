@@ -25,6 +25,8 @@ export const nextPowerOf2Math = (n: number): number => {
 }
 
 export const padToPowerOfTwo = (leaves: Buffer<ArrayBufferLike>[])=> {
+    //Sort the leaves to ensure consistent tree structure and padding at the end
+    leaves.sort(Buffer.compare);
     const n = nextPowerOf2Math(leaves.length);
     const padded = leaves.slice();
     while (padded.length < n) {
@@ -43,8 +45,11 @@ export const allocationsToMerkleTree = (allocationString: string, epochIndex: nu
 
     const leaves = padToPowerOfTwo(allocations.map(a => makeLeaf(a.user, a.amount, epochIndex)));
 
-    //sort the leaves
-    leaves.sort(Buffer.compare);
+    console.log(`\nLeaves (${leaves.length}):`);
+    leaves.forEach((leaf, i) => {
+        console.log(`${i}: ${leaf.toString("hex")}`);
+    });
+
     const tree = new MerkleTree(leaves, sha256, {
         sortPairs: false,
     });

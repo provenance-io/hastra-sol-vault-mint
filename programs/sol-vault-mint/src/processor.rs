@@ -366,12 +366,19 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
     data.extend_from_slice(&amount.to_le_bytes());
     data.extend_from_slice(&ctx.accounts.epoch.index.to_le_bytes());
     let mut node = hashv(&[&data]).to_bytes();
-    
+
     msg!("User Leaf node: {}", hex::encode(node));
 
     // iterate through proof
     for (i, step) in proof.iter().enumerate() {
         let sib = &step.sibling;
+
+        if sib.iter().all(|&b| b == 0) {
+            msg!("[{}] right: sibling is zero - hashing just the node", i);
+            node = hashv(&[&node]).to_bytes();
+            continue;
+        }
+
         if step.is_left {
             // sibling is left, so hash(sib || node)
             node = hashv(&[sib, &node]).to_bytes();
@@ -390,7 +397,7 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
         node == ctx.accounts.epoch.merkle_root,
         CustomErrorCode::InvalidMerkleProof
     );
-    
+
     // mint tokens (wYLDS) to user
     let seeds: &[&[u8]] = &[b"mint_authority", &[ctx.bumps.mint_authority]];
     let signer = &[&seeds[..]];
