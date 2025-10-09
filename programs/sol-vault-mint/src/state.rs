@@ -40,3 +40,12 @@ pub struct RedemptionRequest {
 impl RedemptionRequest {
     pub const LEN: usize = 32 + 8 + 32 + 32 + 1; // 106 bytes
 }
+
+/// One Merkle proof element.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct ProofNode {
+    pub sibling: [u8; 32],
+    pub is_left: bool,
+}
+
+

@@ -33,6 +33,7 @@ pub mod state;
 pub mod events;
 
 use account_structs::*;
+use state::ProofNode;
 use anchor_lang::prelude::*;
 
 declare_id!("3VkpgDpmazgvT6cLKp1UqyAqHKBM46cfpbHhc5ihYta9");
@@ -121,7 +122,7 @@ pub mod hastra_sol_vault_mint {
     /// 	•	The program verifies the Merkle proof against the root.
     /// 	•	If valid, transfer reward tokens (wYLDS) from the rewards vault to the user's mint token account.
     /// 	•	Mark the claim as redeemed so they can’t double-claim.
-    pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<[u8; 32]>) -> Result<()> {
+    pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNode>) -> Result<()> {
         processor::claim_rewards(ctx, amount, proof)
     }
 }
