@@ -50,5 +50,8 @@ pub enum CustomErrorCode {
     InsufficientRedeemVaultFunds = 23,
     #[msg("Redeem request already exists")]
     RequestAlreadyExists = 24,
-
+    #[msg("Vault and mint cannot be the same")]
+    VaultAndMintCannotBeSame = 25,
+    #[msg("Protocol is paused")]
+    ProtocolPaused = 26,
 }

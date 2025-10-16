@@ -1,11 +1,9 @@
-use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Mint};
-use crate::state::*;
 use crate::error::*;
+use crate::state::*;
+use anchor_lang::prelude::*;
+use anchor_spl::token::{Mint, Token, TokenAccount};
 
-use anchor_lang::solana_program::{
-    bpf_loader_upgradeable::{self},
-};
+use anchor_lang::solana_program::bpf_loader_upgradeable::{self};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -19,7 +17,6 @@ pub struct Initialize<'info> {
     pub config: Account<'info, Config>,
 
     #[account(
-        mut,
         constraint = vault_token_account.mint == vault_mint.key() @ CustomErrorCode::InvalidMint
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
@@ -45,22 +42,26 @@ pub struct Initialize<'info> {
 
     pub vault_mint: Account<'info, Mint>,
     pub mint: Account<'info, Mint>,
-    
+
     #[account(mut)]
     pub signer: Signer<'info>,
 
-
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
+
+    /// CHECK: This is the program data account that contains the update authority
+    #[account(
+        constraint = program_data.key() == get_program_data_address(&crate::id()) @ CustomErrorCode::InvalidProgramData
+    )]
+    pub program_data: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
-pub struct UpdateConfig<'info> {
+pub struct Pause<'info> {
     #[account(
         mut,
         seeds = [b"config"],
-        bump
+        bump = config.bump
     )]
     pub config: Account<'info, Config>,
 
@@ -70,13 +71,15 @@ pub struct UpdateConfig<'info> {
     )]
     pub program_data: UncheckedAccount<'info>,
 
-    pub rent: Sysvar<'info, Rent>,
     pub signer: Signer<'info>,
 }
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
-    #[account(seeds = [b"config"], bump)]
+    #[account(
+        seeds = [b"config"], 
+        bump = config.bump
+    )]
     pub config: Account<'info, Config>,
 
     #[account(
@@ -101,7 +104,7 @@ pub struct Deposit<'info> {
     )]
     pub mint_authority: UncheckedAccount<'info>,
 
-    #[account(mut)]
+    #[account()]
     pub signer: Signer<'info>,
 
     #[account(
@@ -153,10 +156,7 @@ pub struct SetFreezeAuthority<'info> {
 
 // Helper function to derive the program data address
 fn get_program_data_address(program_id: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(
-        &[program_id.as_ref()],
-        &bpf_loader_upgradeable::id(),
-    ).0
+    Pubkey::find_program_address(&[program_id.as_ref()], &bpf_loader_upgradeable::id()).0
 }
 
 #[derive(Accounts)]
@@ -259,8 +259,12 @@ pub struct ThawTokenAccount<'info> {
 #[derive(Accounts)]
 #[instruction(index: u64)]
 pub struct CreateRewardsEpoch<'info> {
-    #[account(seeds=[b"config"], bump)]
+    #[account(
+        seeds = [b"config"], 
+        bump = config.bump
+    )]
     pub config: Account<'info, Config>,
+
     #[account(mut)]
     pub admin: Signer<'info>,
     #[account(
@@ -277,7 +281,10 @@ pub struct CreateRewardsEpoch<'info> {
 // user claims this epoch’s amount
 #[derive(Accounts)]
 pub struct ClaimRewards<'info> {
-    #[account(seeds=[b"config"], bump)]
+    #[account(
+        seeds = [b"config"], 
+        bump = config.bump
+    )]
     pub config: Account<'info, Config>,
     #[account(mut)]
     pub user: Signer<'info>,
@@ -347,7 +354,10 @@ pub struct RequestRedeem<'info> {
     #[account(constraint = mint.key() == config.mint)]
     pub mint: Account<'info, Mint>,
 
-    #[account(seeds = [b"config"], bump)]
+    #[account(
+        seeds = [b"config"], 
+        bump = config.bump
+    )]
     pub config: Account<'info, Config>,
 
     pub system_program: Program<'info, System>,
@@ -356,7 +366,7 @@ pub struct RequestRedeem<'info> {
 
 #[derive(Accounts)]
 pub struct CompleteRedeem<'info> {
-    #[account(mut)]
+    #[account()]
     pub admin: Signer<'info>,
 
     /// The original user (to validate and to receive close rent)
@@ -364,7 +374,7 @@ pub struct CompleteRedeem<'info> {
     /// must be writeable to close the account = user will transfer rent to user
     #[account(mut)]
     pub user: SystemAccount<'info>,
-    
+
     #[account(
         mut,
         close = user,   // refund rent to the original user
@@ -374,25 +384,27 @@ pub struct CompleteRedeem<'info> {
     )]
     pub redemption_request: Account<'info, RedemptionRequest>,
 
+    #[account(
+        mut,
+        constraint = user_mint_token_account.mint == config.mint @ CustomErrorCode::InvalidMint,
+    )]
+    pub user_mint_token_account: Account<'info, TokenAccount>, // wYLDS
+
+    #[account(
+        mut,
+        constraint = user_vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint,
+    )]
+    pub user_vault_token_account: Account<'info, TokenAccount>, // USDC dest
+
     #[account(mut)]
-    pub user_mint_token_account: Account<'info, TokenAccount>,     // wYLDS
-
-    #[account(
-        mut
-    )]
-    pub user_vault_token_account: Account<'info, TokenAccount>,    // USDC dest
-
-    #[account(
-        mut
-    )]
-    pub redeem_vault_token_account: Account<'info, TokenAccount>,  // USDC source
+    pub redeem_vault_token_account: Account<'info, TokenAccount>, // USDC source
 
     #[account(
         mut,
         constraint = mint.key() == redemption_request.mint,
         constraint = mint.key() == config.mint @ CustomErrorCode::InvalidMint
     )]
-    pub mint: Account<'info, Mint>,                                 // wYLDS mint
+    pub mint: Account<'info, Mint>, // wYLDS mint
 
     /// CHECK: PDA authority (delegate & vault authority)
     #[account(
@@ -401,8 +413,12 @@ pub struct CompleteRedeem<'info> {
     )]
     pub redeem_vault_authority: AccountInfo<'info>,
 
-    #[account(seeds = [b"config"], bump)]
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump
+    )]
     pub config: Account<'info, Config>,
 
     pub token_program: Program<'info, Token>,
 }
+

@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
-import {Program} from "@coral-xyz/anchor";
-import {HastraSolVaultMint} from "../target/types/hastra_sol_vault_mint";
+import { Program } from "@coral-xyz/anchor";
+import { HastraSolVaultMint } from "../target/types/hastra_sol_vault_mint";
 import yargs from "yargs";
 import {
     PublicKey,
@@ -50,6 +50,16 @@ const main = async () => {
         [Buffer.from("config")],
         program.programId
     );
+    // bpf_loader_upgradeable program id
+    const BPF_LOADER_UPGRADEABLE_ID = new PublicKey(
+        "BPFLoaderUpgradeab1e11111111111111111111111"
+    );
+    // derive ProgramData PDA
+    const [programData] = PublicKey.findProgramAddressSync(
+        [program.programId.toBuffer()],
+        BPF_LOADER_UPGRADEABLE_ID
+    );
+
     const [mintAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("mint_authority")],
         program.programId
@@ -89,6 +99,7 @@ const main = async () => {
     console.log("Rewards Administrators:", rewardsAdministrators.map((a) => a.toBase58()));
     console.log("Redeem Vault Token Account:", redeemVaultTokenAccount.toBase58());
     console.log("Redeem Vault Authority PDA:", redeemVaultAuthorityPda.toBase58());
+    console.log("Program Data PDA:", programData.toBase58());
 
     // Call initialize
     await program.methods
@@ -99,6 +110,7 @@ const main = async () => {
             vaultMint: vault,
             redeemVaultTokenAccount: redeemVaultTokenAccount,
             mint: mint,
+            programData: programData,
         }).rpc()
         .then((tx) => {
             console.log("Transaction:", tx);

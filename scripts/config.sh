@@ -156,7 +156,7 @@ deploy_program() {
   sed -i '' "s/declare_id!(\"[A-Za-z0-9]*\");/declare_id!(\"$PROGRAM_ID\");/" $PROGRAM_FILE
   echo "Updated ${PROGRAM_FILE} with new Program ID ${PROGRAM_ID}"
   echo "Saving Deploy Keypair to local config ${HOME}/.config/solana"
-  cp ../target/deploy/hastra_sol_vault_mint-keypair.json $HOME/.config/solana
+  cp ../target/deploy/hastra_sol_vault_mint-keypair.json $HOME/.config/solana/hastra_sol_vault_mint_${PROGRAM_ID}-keypair.json
 
   build_program
 

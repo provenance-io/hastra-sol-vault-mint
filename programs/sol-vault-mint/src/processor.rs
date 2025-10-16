@@ -2,11 +2,11 @@ use crate::account_structs::*;
 use crate::error::*;
 use crate::events::*;
 use crate::guard::validate_program_update_authority;
+use crate::state::ProofNode;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::token::spl_token::instruction::AuthorityType;
-use anchor_spl::token::{self, Burn, MintTo, Transfer};
-use crate::state::ProofNode;
+use anchor_spl::token::{self, MintTo, Transfer};
 
 pub fn initialize(
     ctx: Context<Initialize>,
@@ -18,9 +18,21 @@ pub fn initialize(
     msg!("Initializing with vault_mint: {}", vault_mint);
     msg!("Vault mint account: {}", ctx.accounts.vault_mint.key());
 
+    validate_program_update_authority(&ctx.accounts.program_data, &ctx.accounts.signer)?;
+
     require!(
         freeze_administrators.len() <= 5,
         CustomErrorCode::TooManyAdministrators
+    );
+
+    require!(
+        rewards_administrators.len() <= 5,
+        CustomErrorCode::TooManyAdministrators
+    );
+
+    require!(
+        vault_mint != mint,
+        CustomErrorCode::VaultAndMintCannotBeSame
     );
 
     let config = &mut ctx.accounts.config;
@@ -59,7 +71,19 @@ pub fn initialize(
     Ok(())
 }
 
+pub fn pause(ctx: Context<Pause>, pause: bool) -> Result<()> {
+    // Validate that the signer is the program's update authority
+    validate_program_update_authority(&ctx.accounts.program_data, &ctx.accounts.signer)?;
+
+    let config = &mut ctx.accounts.config;
+    config.paused = pause;
+
+    msg!("Program paused state set to: {}", pause);
+    Ok(())
+}
+
 pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+    require!(!ctx.accounts.config.paused, CustomErrorCode::ProtocolPaused);
     require!(amount > 0, CustomErrorCode::InvalidAmount);
 
     // Validate that vault_token_account is owned by the configured vault authority
@@ -93,10 +117,19 @@ pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         ),
         amount,
     )?;
+
+    emit!(DepositEvent {
+        user: ctx.accounts.signer.key(),
+        amount,
+        mint: ctx.accounts.mint.key(),
+        vault: ctx.accounts.vault_token_account.mint,
+    });
+
     Ok(())
 }
 
 pub fn request_redeem(ctx: Context<RequestRedeem>, amount: u64) -> Result<()> {
+    require!(!ctx.accounts.config.paused, CustomErrorCode::ProtocolPaused);
     require!(amount > 0, CustomErrorCode::InvalidAmount);
 
     // Check user's mint token balance
@@ -359,6 +392,7 @@ pub fn create_rewards_epoch(
 }
 
 pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNode>) -> Result<()> {
+    require!(!ctx.accounts.config.paused, CustomErrorCode::ProtocolPaused);
     require!(amount > 0, CustomErrorCode::InvalidAmount);
     // leaf = sha256(user || amount_le || epoch_index_le)
     let mut data = Vec::with_capacity(32 + 8 + 8);
@@ -391,7 +425,10 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
     }
 
     msg!("Computed root: {}", hex::encode(node));
-    msg!("Expected root: {}", hex::encode(ctx.accounts.epoch.merkle_root));
+    msg!(
+        "Expected root: {}",
+        hex::encode(ctx.accounts.epoch.merkle_root)
+    );
 
     require!(
         node == ctx.accounts.epoch.merkle_root,
@@ -414,5 +451,14 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
         ),
         amount,
     )?;
+
+    emit!(RewardsClaimed {
+        user: ctx.accounts.user.key(),
+        epoch: ctx.accounts.epoch.index,
+        amount,
+        mint: ctx.accounts.mint.key(),
+        vault: ctx.accounts.config.vault,
+    });
+
     Ok(())
 }

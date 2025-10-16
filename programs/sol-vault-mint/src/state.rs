@@ -9,10 +9,13 @@ pub struct Config {
     pub vault_authority: Pubkey,
     pub redeem_vault: Pubkey,
     pub bump: u8,
+    pub paused: bool,
 }
 
 impl Config {
-    pub const LEN: usize = 8 + 1 + 32 + 32 + (32 * 5) +  (32 * 5) + 32 + 32 + 32; // max of 5 administrators
+    // The vectors have a max length of 5 each and must include the Borsh overhead of 4 bytes for
+    // the length prefix.
+    pub const LEN: usize = 8 + 32 + 32 + (4 + (32 * 5)) + (4 + (32 * 5)) + 32 + 32 + 1 + 1;
 }
 
 #[account]
@@ -22,11 +25,15 @@ pub struct RewardsEpoch {
     pub total: u64,            // optional: sum of all allocations
     pub created_ts: i64,
 }
-impl RewardsEpoch { pub const LEN: usize = 8 + 8 + 32 + 8 + 8; }
+impl RewardsEpoch {
+    pub const LEN: usize = 8 + 8 + 32 + 8 + 8;
+}
 
 #[account]
-pub struct ClaimRecord {}      // empty marker account, existence = already claimed
-impl ClaimRecord { pub const LEN: usize = 8; }
+pub struct ClaimRecord {} // empty marker account, existence = already claimed
+impl ClaimRecord {
+    pub const LEN: usize = 8;
+}
 
 #[account]
 pub struct RedemptionRequest {
@@ -38,7 +45,7 @@ pub struct RedemptionRequest {
 }
 
 impl RedemptionRequest {
-    pub const LEN: usize = 32 + 8 + 32 + 32 + 1; // 106 bytes
+    pub const LEN: usize = 8 + 32 + 8 + 32 + 32 + 1;
 }
 
 /// One Merkle proof element.
@@ -47,5 +54,3 @@ pub struct ProofNode {
     pub sibling: [u8; 32],
     pub is_left: bool,
 }
-
-

@@ -70,6 +70,7 @@ const main = async () => {
     console.log(`Redeem Vault Token Account:    ${redeemVaultTokenAccount.toBase58()}`);
     console.log(`Redemption Request PDA:        ${redemptionRequestPda.toBase58()}`);
     console.log(`Redeem Vault Authority PDA:    ${redeemVaultAuthorityPda.toBase58()}`);
+    console.log(`Token Program:                 ${anchor.utils.token.TOKEN_PROGRAM_ID.toBase58()}`);
 
     const tx = await program.methods
         .completeRedeem() // Amount is calculated in the function

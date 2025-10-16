@@ -27,14 +27,14 @@ pub mod account_structs;
 /// token authority controls. All token operations are atomic and validated
 /// through Solana's transaction model.
 pub mod error;
+pub mod events;
 mod guard;
 pub mod processor;
 pub mod state;
-pub mod events;
 
 use account_structs::*;
-use state::ProofNode;
 use anchor_lang::prelude::*;
+use state::ProofNode;
 
 declare_id!("3VkpgDpmazgvT6cLKp1UqyAqHKBM46cfpbHhc5ihYta9");
 
@@ -59,6 +59,11 @@ pub mod hastra_sol_vault_mint {
             freeze_administrators,
             rewards_administrators,
         )
+    }
+
+    /// Pauses or unpauses the program, disabling or enabling deposit and redeem functions.
+    pub fn pause(ctx: Context<Pause>, pause: bool) -> Result<()> {
+        processor::pause(ctx, pause)
     }
 
     /// Handles user deposits of vault tokens (e.g., USDC):
@@ -122,8 +127,11 @@ pub mod hastra_sol_vault_mint {
     /// 	•	The program verifies the Merkle proof against the root.
     /// 	•	If valid, transfer reward tokens (wYLDS) from the rewards vault to the user's mint token account.
     /// 	•	Mark the claim as redeemed so they can’t double-claim.
-    pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNode>) -> Result<()> {
+    pub fn claim_rewards(
+        ctx: Context<ClaimRewards>,
+        amount: u64,
+        proof: Vec<ProofNode>,
+    ) -> Result<()> {
         processor::claim_rewards(ctx, amount, proof)
     }
 }
-    
