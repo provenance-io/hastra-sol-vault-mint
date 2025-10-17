@@ -112,6 +112,9 @@ create_redeem_vault_token_account() {
 
 
 set_new_program_id() {
+  OLD_PROGRAM_ID=$(grep -oE 'declare_id!\("([A-Za-z0-9]+)"\);' ../programs/hastra-sol-vault-mint/src/lib.rs | grep -oE '\"([A-Za-z0-9]+)\"' | tr -d '"')
+  cp ../target/deploy/hastra_sol_vault_mint-keypair.json $HOME/.config/solana/hastra_sol_vault_mint-keypair-$OLD_PROGRAM_ID.json
+  echo "Backed up old keypair to ${HOME}/.config/solana/hastra_sol_vault_mint-keypair-${OLD_PROGRAM_ID}.json"
   rm ../target/deploy/hastra_sol_vault_mint-keypair.json
   # generate new keypair for program
   PROGRAM_ID=$(solana-keygen new --no-passphrase --no-outfile | grep -oE 'pubkey: ([A-Za-z0-9]+)' | awk '{print $NF}')
