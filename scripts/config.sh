@@ -100,17 +100,21 @@ create_mint_token() {
   echo "MINT_TOKEN=\"$MINT_TOKEN\"" >> "$HISTORY_FILE"
 }
 
-create_vault_token_account() {
-  echo "Creating Vault Token Account (ATA)..."
-  VAULT_TOKEN_ACCOUNT=$(spl-token create-account "$VAULT_MINT" \
+create_redeem_vault_token_account() {
+  echo "Creating Redeem Vault Token Account (ATA)..."
+  REDEEM_VAULT_TOKEN_ACCOUNT=$(spl-token create-account "$VAULT_MINT" \
     --owner "$KEYPAIR" \
     --url "$SOLANA_URL" | grep -oE 'Creating account.* ([A-Za-z0-9]+)' | awk '{print $NF}')
-  echo "Vault Token Account: $VAULT_TOKEN_ACCOUNT"
-  sed -i.bak "/^VAULT_TOKEN_ACCOUNT=/d" "$HISTORY_FILE"
-  echo "VAULT_TOKEN_ACCOUNT=\"$VAULT_TOKEN_ACCOUNT\"" >> "$HISTORY_FILE"
+  echo "Redeem Vault Token Account: $REDEEM_VAULT_TOKEN_ACCOUNT"
+  sed -i.bak "/^REDEEM_VAULT_TOKEN_ACCOUNT=/d" "$HISTORY_FILE"
+  echo "REDEEM_VAULT_TOKEN_ACCOUNT=\"$REDEEM_VAULT_TOKEN_ACCOUNT\"" >> "$HISTORY_FILE"
 }
 
+
 set_new_program_id() {
+  OLD_PROGRAM_ID=$(grep -oE 'declare_id!\("([A-Za-z0-9]+)"\);' ../programs/hastra-sol-vault-mint/src/lib.rs | grep -oE '\"([A-Za-z0-9]+)\"' | tr -d '"')
+  cp ../target/deploy/hastra_sol_vault_mint-keypair.json $HOME/.config/solana/hastra_sol_vault_mint-keypair-$OLD_PROGRAM_ID.json
+  echo "Backed up old keypair to ${HOME}/.config/solana/hastra_sol_vault_mint-keypair-${OLD_PROGRAM_ID}.json"
   rm ../target/deploy/hastra_sol_vault_mint-keypair.json
   # generate new keypair for program
   PROGRAM_ID=$(solana-keygen new --no-passphrase --no-outfile | grep -oE 'pubkey: ([A-Za-z0-9]+)' | awk '{print $NF}')
@@ -151,11 +155,11 @@ deploy_program() {
   PROGRAM_ID=$(solana-keygen pubkey ../target/deploy/hastra_sol_vault_mint-keypair.json)
   update_history_var "PROGRAM_ID"
   # Update lib.rs declare_id:
-  PROGRAM_FILE="../programs/hastra-sol-vault-mint/src/lib.rs"
+  PROGRAM_FILE="../programs/sol-vault-mint/src/lib.rs"
   sed -i '' "s/declare_id!(\"[A-Za-z0-9]*\");/declare_id!(\"$PROGRAM_ID\");/" $PROGRAM_FILE
   echo "Updated ${PROGRAM_FILE} with new Program ID ${PROGRAM_ID}"
   echo "Saving Deploy Keypair to local config ${HOME}/.config/solana"
-  cp ../target/deploy/hastra_sol_vault_mint-keypair.json $HOME/.config/solana
+  cp ../target/deploy/hastra_sol_vault_mint-keypair.json $HOME/.config/solana/hastra_sol_vault_mint_${PROGRAM_ID}-keypair.json
 
   build_program
 
@@ -178,11 +182,15 @@ initialize_program() {
   if [ -z "$REWARDS_ADMINISTRATORS" ]; then
     prompt_with_default REWARDS_ADMINISTRATORS "Enter comma-separated list of Rewards Administrator addresses"
   fi
+  if [ -z "$REDEEM_VAULT_TOKEN_ACCOUNT" ]; then
+    prompt_with_default REDEEM_VAULT_TOKEN_ACCOUNT "Enter Redeem Vault Token Account address"
+  fi
 
   INITIALIZE=$(
     yarn run ts-node scripts/initialize.ts \
     --vault "$VAULT_MINT" \
     --vault_token_account "$VAULT_TOKEN_ACCOUNT" \
+    --redeem_vault_token_account "$REDEEM_VAULT_TOKEN_ACCOUNT" \
     --mint "$MINT_TOKEN" \
     --freeze_administrators "$FREEZE_ADMINISTRATORS" \
     --rewards_administrators "$REWARDS_ADMINISTRATORS")
@@ -191,10 +199,12 @@ initialize_program() {
   CONFIG_PDA=$(echo $INITIALIZE | grep -oE 'Config PDA: ([A-Za-z0-9]+)' | awk '{print $NF}')
   MINT_AUTHORITY_PDA=$(echo $INITIALIZE | grep -oE 'Mint Authority PDA: ([A-Za-z0-9]+)' | awk '{print $NF}')
   FREEZE_AUTHORITY_PDA=$(echo $INITIALIZE | grep -oE 'Freeze Authority PDA: ([A-Za-z0-9]+)' | awk '{print $NF}')
+  REDEEM_VAULT_AUTHORITY_PDA=$(echo $INITIALIZE | grep -oE 'Redeem Vault Authority PDA: ([A-Za-z0-9]+)' | awk '{print $NF}')
 
   update_history_var "CONFIG_PDA"
   update_history_var "MINT_AUTHORITY_PDA"
   update_history_var "FREEZE_AUTHORITY_PDA"
+  update_history_var "REDEEM_VAULT_AUTHORITY_PDA"
 }
 
 build_deploy_initialize() {
@@ -263,12 +273,14 @@ show_accounts_and_pdas() {
   echo "Program ID:                         $PROGRAM_ID"
   echo "Vault Token (accepted token):       $VAULT_MINT"
   echo "Mint Token (token minted):          $MINT_TOKEN"
-  echo "Vault Token Authority Account:      $VAULT_TOKEN_ACCOUNT"
+  echo "Vault Token Account:                $VAULT_TOKEN_ACCOUNT"
   echo "Config PDA:                         $CONFIG_PDA"
   echo "Mint Authority PDA:                 $MINT_AUTHORITY_PDA"
   echo "Freeze Authority PDA:               $FREEZE_AUTHORITY_PDA"
   echo "Freeze Administrators:              $FREEZE_ADMINISTRATORS"
   echo "Rewards Administrators:             $REWARDS_ADMINISTRATORS"
+  echo "Redeem Vault Token Account:         $REDEEM_VAULT_TOKEN_ACCOUNT"
+  echo "Redeem Vault Authority PDA:         $REDEEM_VAULT_AUTHORITY_PDA"
 
   # get the mint token mint authority and freeze authority
   echo ""
@@ -279,6 +291,9 @@ show_accounts_and_pdas() {
   echo ""
   spl-token display "$VAULT_TOKEN_ACCOUNT" --url "$SOLANA_URL"
   echo ""
+  spl-token display "$REDEEM_VAULT_TOKEN_ACCOUNT" --url "$SOLANA_URL"
+  echo ""
+
 }
 
 update_mint_authority() {
@@ -321,6 +336,7 @@ while true; do
     "Update Mint Authority" \
     "Update Freeze Authority" \
     "Create Mint Token" \
+    "Create Redeem Vault Token Account" \
     "Reset and Set New Program ID" \
     "Exit"
   do
@@ -336,8 +352,9 @@ while true; do
       9) update_mint_authority; break ;;
       10) update_freeze_authority; break ;;
       11) create_mint_token; break ;;
-      12) set_new_program_id; break ;;
-      13) exit 0 ;;
+      12) create_redeem_vault_token_account; break ;;
+      13) set_new_program_id; break ;;
+      14) exit 0 ;;
       *) echo "Invalid option"; break ;;
     esac
   done

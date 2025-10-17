@@ -27,14 +27,16 @@ pub mod account_structs;
 /// token authority controls. All token operations are atomic and validated
 /// through Solana's transaction model.
 pub mod error;
+pub mod events;
 mod guard;
 pub mod processor;
 pub mod state;
 
 use account_structs::*;
 use anchor_lang::prelude::*;
+use state::ProofNode;
 
-declare_id!("DyB1GKA83V8byG11QfwxZWdysbvVo5ySqjvwGZ471rqs");
+declare_id!("3VkpgDpmazgvT6cLKp1UqyAqHKBM46cfpbHhc5ihYta9");
 
 #[program]
 pub mod hastra_sol_vault_mint {
@@ -59,6 +61,11 @@ pub mod hastra_sol_vault_mint {
         )
     }
 
+    /// Pauses or unpauses the program, disabling or enabling deposit and redeem functions.
+    pub fn pause(ctx: Context<Pause>, pause: bool) -> Result<()> {
+        processor::pause(ctx, pause)
+    }
+
     /// Handles user deposits of vault tokens (e.g., USDC):
     /// - Transfers vault tokens to program vault account
     /// - Mints equivalent amount of mint tokens (e.g., wYLDS) to user
@@ -69,16 +76,14 @@ pub mod hastra_sol_vault_mint {
     /// The redeem function allows users to withdraw their original vault tokens:
     /// - Transfers vault tokens from a program vault account to user
     /// - Burns the corresponding amount of mint tokens (e.g., wYLDS) from user
-    pub fn redeem(ctx: Context<Redeem>, amount: u64) -> Result<()> {
-        processor::redeem(ctx, amount)
+    pub fn request_redeem(ctx: Context<RequestRedeem>, amount: u64) -> Result<()> {
+        processor::request_redeem(ctx, amount)
     }
 
-    /// Sets the mint authority for a specified token type
-    /// Used to configure program control over token minting
-    pub fn set_mint_authority(ctx: Context<SetMintAuthority>, new_authority: Pubkey) -> Result<()> {
-        processor::set_mint_authority(ctx, new_authority)
+    pub fn complete_redeem(ctx: Context<CompleteRedeem>) -> Result<()> {
+        processor::complete_redeem(ctx)
     }
-    
+
     pub fn update_freeze_administrators(
         ctx: Context<UpdateFreezeAdministrators>,
         new_administrators: Vec<Pubkey>,
@@ -122,8 +127,11 @@ pub mod hastra_sol_vault_mint {
     /// 	•	The program verifies the Merkle proof against the root.
     /// 	•	If valid, transfer reward tokens (wYLDS) from the rewards vault to the user's mint token account.
     /// 	•	Mark the claim as redeemed so they can’t double-claim.
-    pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<[u8; 32]>) -> Result<()> {
+    pub fn claim_rewards(
+        ctx: Context<ClaimRewards>,
+        amount: u64,
+        proof: Vec<ProofNode>,
+    ) -> Result<()> {
         processor::claim_rewards(ctx, amount, proof)
     }
 }
-    

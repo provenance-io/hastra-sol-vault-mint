@@ -1,12 +1,9 @@
 import * as anchor from "@coral-xyz/anchor";
-import {Program} from "@coral-xyz/anchor";
-import {HastraSolVaultMint} from "../target/types/hastra_sol_vault_mint";
+import { Program } from "@coral-xyz/anchor";
+import { HastraSolVaultMint } from "../target/types/hastra_sol_vault_mint";
 import yargs from "yargs";
-import BN from "bn.js";
 import {
     PublicKey,
-    sendAndConfirmTransaction,
-    Transaction
 } from "@solana/web3.js";
 
 const provider = anchor.AnchorProvider.env();
@@ -27,7 +24,12 @@ const args = yargs(process.argv.slice(2))
     })
     .option("vault_token_account", {
         type: "string",
-        description: "Token account that will hold the vaulted asset (e.g. wYLDS). Must be owned by the program-derived address.",
+        description: "Token account that will hold the vaulted asset (e.g. USDC).",
+        required: true,
+    })
+    .option("redeem_vault_token_account", {
+        type: "string",
+        description: "Token account that will hold vaulted asset (e.g. USDC) used for redemptions.",
         required: true,
     })
     .option("freeze_administrators", {
@@ -48,6 +50,16 @@ const main = async () => {
         [Buffer.from("config")],
         program.programId
     );
+    // bpf_loader_upgradeable program id
+    const BPF_LOADER_UPGRADEABLE_ID = new PublicKey(
+        "BPFLoaderUpgradeab1e11111111111111111111111"
+    );
+    // derive ProgramData PDA
+    const [programData] = PublicKey.findProgramAddressSync(
+        [program.programId.toBuffer()],
+        BPF_LOADER_UPGRADEABLE_ID
+    );
+
     const [mintAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("mint_authority")],
         program.programId
@@ -56,9 +68,17 @@ const main = async () => {
         [Buffer.from("freeze_authority")],
         program.programId
     );
+
+    const [redeemVaultAuthorityPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("redeem_vault_authority")],
+        program.programId
+    );
+
     const vault = new anchor.web3.PublicKey(args.vault);
     const mint = new anchor.web3.PublicKey(args.mint);
     const vaultTokenAccount = new anchor.web3.PublicKey(args.vault_token_account);
+    const redeemVaultTokenAccount = new anchor.web3.PublicKey(args.redeem_vault_token_account);
+
     const freezeAdministrators: PublicKey[] = (args.freeze_administrators.split(",")).map((s: string) => new anchor.web3.PublicKey(s));
     if (freezeAdministrators.length > 5) {
         throw new Error(`Number of freeze administrators (${freezeAdministrators.length}) exceeds maximum 5`);
@@ -77,6 +97,9 @@ const main = async () => {
     console.log("Freeze Authority PDA:", freezeAuthorityPda.toBase58());
     console.log("Freeze Administrators:", freezeAdministrators.map((a) => a.toBase58()));
     console.log("Rewards Administrators:", rewardsAdministrators.map((a) => a.toBase58()));
+    console.log("Redeem Vault Token Account:", redeemVaultTokenAccount.toBase58());
+    console.log("Redeem Vault Authority PDA:", redeemVaultAuthorityPda.toBase58());
+    console.log("Program Data PDA:", programData.toBase58());
 
     // Call initialize
     await program.methods
@@ -85,7 +108,9 @@ const main = async () => {
             signer: provider.wallet.publicKey,
             vaultTokenAccount: vaultTokenAccount,
             vaultMint: vault,
+            redeemVaultTokenAccount: redeemVaultTokenAccount,
             mint: mint,
+            programData: programData,
         }).rpc()
         .then((tx) => {
             console.log("Transaction:", tx);

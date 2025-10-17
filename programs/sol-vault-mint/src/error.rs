@@ -40,4 +40,18 @@ pub enum CustomErrorCode {
     RewardsAlreadyClaimed = 18,
     #[msg("Invalid rewards administrator")]
     InvalidRewardsAdministrator = 19,
+    #[msg("Invalid token owner")]
+    InvalidTokenOwner = 20,
+    #[msg("Redemption request already fulfilled")]
+    AlreadyFulfilled = 21,
+    #[msg("Redemption request not found")]
+    RequestNotFound = 22,
+    #[msg("Insufficient lamport funds in redeem vault authority")]
+    InsufficientRedeemVaultFunds = 23,
+    #[msg("Redeem request already exists")]
+    RequestAlreadyExists = 24,
+    #[msg("Vault and mint cannot be the same")]
+    VaultAndMintCannotBeSame = 25,
+    #[msg("Protocol is paused")]
+    ProtocolPaused = 26,
 }
