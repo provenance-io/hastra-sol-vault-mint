@@ -118,12 +118,14 @@ pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         amount,
     )?;
 
+    msg!("Emitting DepositEvent");
     emit!(DepositEvent {
         user: ctx.accounts.signer.key(),
         amount,
         mint: ctx.accounts.mint.key(),
         vault: ctx.accounts.vault_token_account.mint,
     });
+    msg!("Emitted DepositEvent");
 
     Ok(())
 }
@@ -142,7 +144,17 @@ pub fn request_redeem(ctx: Context<RequestRedeem>, amount: u64) -> Result<()> {
         CustomErrorCode::InsufficientRedeemVaultFunds
     );
 
+    // amount_to_redeem = min(user wYLDS balance, requested)
+    // We do this to prevent the program from over-burning when the
+    // redeem is completed. The complete redeem will also check the
+    // redeem amount against the user balance at the time of completion to
+    // prevent burn error.
+    let amount_to_redeem = std::cmp::min(user_balance, amount);
+    require!(amount_to_redeem > 0, CustomErrorCode::InvalidAmount);
+
     msg!("RequestRedeem user account balance: {}", user_balance);
+    msg!("Requested amount to redeem: {}", amount);
+    msg!("Actual amount to redeem: {}", amount_to_redeem);
 
     // Set burn authority to the redeem vault authority PDA so it can burn tokens later
     token::approve(
@@ -157,20 +169,20 @@ pub fn request_redeem(ctx: Context<RequestRedeem>, amount: u64) -> Result<()> {
         amount,
     )?;
 
-    msg!("Emitting RedemptionRequested event");
+    msg!("Emitting RedemptionRequested");
     emit!(RedemptionRequested {
         user: ctx.accounts.signer.key(),
         amount,
         vault_mint: ctx.accounts.config.vault,
         mint: ctx.accounts.config.mint,
     });
+    msg!("Emitted RedemptionRequested");
 
     msg!("recording redemption request");
     // Record the request (creates a lock on the user)
     let request = &mut ctx.accounts.redemption_request;
     request.user = ctx.accounts.signer.key();
     request.amount = amount;
-    request.vault_mint = ctx.accounts.config.vault;
     request.mint = ctx.accounts.config.mint;
     request.bump = ctx.bumps.redemption_request;
 
@@ -190,7 +202,12 @@ pub fn complete_redeem(ctx: Context<CompleteRedeem>) -> Result<()> {
 
     let req = &ctx.accounts.redemption_request;
 
-    // amount_to_redeem = min(user wYLDS balance, requested)
+    // The request redeem function will set the redeem amount to the min
+    // of the requested amount and the user's mint balance at the request.
+    // This prevents program from burning more than their balance at the time.
+    // However, we also do the same here to prevent error in the situation where
+    // the user transfers mint out of their account before this complete request
+    // executes.
     let user_mint_balance = ctx.accounts.user_mint_token_account.amount;
     let amount_to_redeem = std::cmp::min(user_mint_balance, req.amount);
     require!(amount_to_redeem > 0, CustomErrorCode::InvalidAmount);
@@ -236,6 +253,7 @@ pub fn complete_redeem(ctx: Context<CompleteRedeem>) -> Result<()> {
         amount_to_redeem,
     )?;
 
+    msg!("Emitting RedeemCompleted");
     emit!(RedeemCompleted {
         user: ctx.accounts.user.key(),
         admin: ctx.accounts.admin.key(),
@@ -243,6 +261,7 @@ pub fn complete_redeem(ctx: Context<CompleteRedeem>) -> Result<()> {
         mint: ctx.accounts.mint.key(),
         vault: ctx.accounts.redeem_vault_token_account.mint,
     });
+    msg!("Emitted RedeemCompleted");
 
     // Anchor will auto-close redemption_request to `user` per the accounts attr
     Ok(())
@@ -452,6 +471,7 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
         amount,
     )?;
 
+    msg!("Emitting RewardsClaimed");
     emit!(RewardsClaimed {
         user: ctx.accounts.user.key(),
         epoch: ctx.accounts.epoch.index,
@@ -459,6 +479,7 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
         mint: ctx.accounts.mint.key(),
         vault: ctx.accounts.config.vault,
     });
+    msg!("Emitted RewardsClaimed");
 
     Ok(())
 }

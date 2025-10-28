@@ -111,7 +111,7 @@ pub struct Deposit<'info> {
         mut,
         token::mint = config.vault,
         constraint = user_vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint,
-        constraint = user_vault_token_account.owner == signer.key()
+        constraint = user_vault_token_account.owner == signer.key() @ CustomErrorCode::InvalidTokenOwner
     )]
     pub user_vault_token_account: Account<'info, TokenAccount>,
 
@@ -119,38 +119,10 @@ pub struct Deposit<'info> {
         mut,
         token::mint = config.mint,
         constraint = user_mint_token_account.mint == config.mint @ CustomErrorCode::InvalidMint,
-        constraint = user_mint_token_account.owner == signer.key()
+        constraint = user_mint_token_account.owner == signer.key() @ CustomErrorCode::InvalidTokenOwner
     )]
     pub user_mint_token_account: Account<'info, TokenAccount>,
 
-    pub token_program: Program<'info, Token>,
-}
-
-#[derive(Accounts)]
-pub struct SetFreezeAuthority<'info> {
-    #[account(
-        mut,
-        constraint = mint.freeze_authority.is_some() @ CustomErrorCode::InvalidFreezeAuthority
-    )]
-    pub mint: Account<'info, Mint>,
-
-    /// CHECK: This is the program data account that contains the update authority
-    #[account(
-        constraint = program_data.key() == get_program_data_address(&crate::id()) @ CustomErrorCode::InvalidProgramData
-    )]
-    pub program_data: UncheckedAccount<'info>,
-
-    /// CHECK: Current freeze authority (could be a keypair or PDA)
-    pub current_freeze_authority: Signer<'info>,
-
-    /// CHECK: This is the PDA that will become the freeze authority
-    #[account(
-        seeds = [b"freeze_authority"],
-        bump
-    )]
-    pub freeze_authority_pda: UncheckedAccount<'info>,
-
-    pub signer: Signer<'info>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -338,7 +310,7 @@ pub struct RequestRedeem<'info> {
     #[account(
         init,
         payer = signer,
-        space = 8 + RedemptionRequest::LEN,
+        space = RedemptionRequest::LEN,
         seeds = [b"redemption_request", signer.key().as_ref()],
         bump
     )]
@@ -351,7 +323,9 @@ pub struct RequestRedeem<'info> {
     )]
     pub redeem_vault_authority: AccountInfo<'info>,
 
-    #[account(constraint = mint.key() == config.mint)]
+    #[account(
+        constraint = mint.key() == config.mint @ CustomErrorCode::InvalidMint
+    )]
     pub mint: Account<'info, Mint>,
 
     #[account(
@@ -387,6 +361,7 @@ pub struct CompleteRedeem<'info> {
     #[account(
         mut,
         constraint = user_mint_token_account.mint == config.mint @ CustomErrorCode::InvalidMint,
+        constraint = user_mint_token_account.owner == user.key() @ CustomErrorCode::InvalidTokenOwner
     )]
     pub user_mint_token_account: Account<'info, TokenAccount>, // wYLDS
 
@@ -396,7 +371,11 @@ pub struct CompleteRedeem<'info> {
     )]
     pub user_vault_token_account: Account<'info, TokenAccount>, // USDC dest
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = redeem_vault_token_account.mint == config.vault @ CustomErrorCode::InvalidVaultMint,
+        constraint = redeem_vault_token_account.owner == redeem_vault_authority.key() @ CustomErrorCode::InvalidVaultAuthority
+    )]
     pub redeem_vault_token_account: Account<'info, TokenAccount>, // USDC source
 
     #[account(
