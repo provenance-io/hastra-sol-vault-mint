@@ -166,13 +166,13 @@ pub fn request_redeem(ctx: Context<RequestRedeem>, amount: u64) -> Result<()> {
                 authority: ctx.accounts.signer.to_account_info(),
             },
         ),
-        amount,
+        amount_to_redeem,
     )?;
 
     msg!("Emitting RedemptionRequested");
     emit!(RedemptionRequested {
         user: ctx.accounts.signer.key(),
-        amount,
+        amount: amount_to_redeem,
         vault_mint: ctx.accounts.config.vault,
         mint: ctx.accounts.config.mint,
     });
@@ -182,7 +182,7 @@ pub fn request_redeem(ctx: Context<RequestRedeem>, amount: u64) -> Result<()> {
     // Record the request (creates a lock on the user)
     let request = &mut ctx.accounts.redemption_request;
     request.user = ctx.accounts.signer.key();
-    request.amount = amount;
+    request.amount = amount_to_redeem;
     request.mint = ctx.accounts.config.mint;
     request.bump = ctx.bumps.redemption_request;
 
