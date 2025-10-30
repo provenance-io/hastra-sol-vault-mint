@@ -45,13 +45,16 @@ pub mod hastra_sol_vault_mint {
     /// Initializes the vault program with the required token configurations:
     /// - vault_mint: The token that users deposit (e.g., USDC)
     /// - mint: The token users receive when deposit received (e.g., wYLDS)
+    /// - freeze_administrators: List of pubkeys authorized to freeze/thaw token accounts
+    /// - rewards_administrators: List of pubkeys authorized to create rewards epochs
+    /// - allowed_external_mint_program: An external program authorized to mint tokens
     pub fn initialize(
         ctx: Context<Initialize>,
         vault_mint: Pubkey,
         mint: Pubkey,
         freeze_administrators: Vec<Pubkey>,
         rewards_administrators: Vec<Pubkey>,
-        allow_mint_program_caller: Pubkey,
+        allowed_external_mint_program: Pubkey,
         
     ) -> Result<()> {
         processor::initialize(
@@ -60,7 +63,7 @@ pub mod hastra_sol_vault_mint {
             mint,
             freeze_administrators,
             rewards_administrators,
-            allow_mint_program_caller
+            allowed_external_mint_program
         )
     }
 
@@ -139,7 +142,7 @@ pub mod hastra_sol_vault_mint {
     }
     
     /// Allows an external authorized program to mint tokens to a specified account.
-    pub fn program_mint_to(ctx: Context<ProgramMintTo>, amount: u64) -> Result<()> {
-        processor::program_mint_to(ctx, amount)
+    pub fn external_program_mint(ctx: Context<ExternalProgramMint>, amount: u64) -> Result<()> {
+        processor::external_program_mint(ctx, amount)
     }   
 }

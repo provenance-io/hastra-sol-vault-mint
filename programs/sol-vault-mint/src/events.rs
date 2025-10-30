@@ -35,9 +35,9 @@ pub struct RedeemCompleted {
 }
 
 #[event]
-pub struct ProgramMinted {
+pub struct ExternalProgramMintEvent {
     pub admin: Pubkey,
-    pub mint_program_caller: Pubkey,
+    pub external_mint_program_caller: Pubkey,
     pub destination: Pubkey,
     pub amount: u64,
     pub mint: Pubkey,

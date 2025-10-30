@@ -14,7 +14,7 @@ pub fn initialize(
     mint: Pubkey,
     freeze_administrators: Vec<Pubkey>,
     rewards_administrators: Vec<Pubkey>,
-    allow_mint_program_caller: Pubkey
+    allowed_external_mint_program: Pubkey
 ) -> Result<()> {
     msg!("Initializing with vault_mint: {}", vault_mint);
     msg!("Vault mint account: {}", ctx.accounts.vault_mint.key());
@@ -42,7 +42,7 @@ pub fn initialize(
     config.freeze_administrators = freeze_administrators;
     config.rewards_administrators = rewards_administrators;
     config.vault_authority = ctx.accounts.vault_token_account.owner;
-    config.allow_mint_program_caller = allow_mint_program_caller;
+    config.allowed_external_mint_program = allowed_external_mint_program;
     config.bump = ctx.bumps.config;
 
     // The redeem vault token account must be owned by the program-derived address (PDA)
@@ -487,7 +487,7 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
 }
 
 // Allows an external program (specified in config) to mint tokens to a destination account
-pub fn program_mint_to(ctx: Context<ProgramMintTo>, amount: u64) -> Result<()> {
+pub fn external_program_mint(ctx: Context<ExternalProgramMint>, amount: u64) -> Result<()> {
     let config = &ctx.accounts.config;
 
     // Ensure the signer is a rewards administrator
@@ -496,10 +496,16 @@ pub fn program_mint_to(ctx: Context<ProgramMintTo>, amount: u64) -> Result<()> {
         CustomErrorCode::InvalidRewardsAdministrator
     );
 
+    // Verify that the caller is a program (not a regular account)
+    require!(
+        ctx.accounts.external_mint_program_caller.executable,
+        CustomErrorCode::InvalidMintProgramCaller
+    );
+    
     // Ensure the caller is the allowed program
     require_keys_eq!(
-        ctx.accounts.mint_program_caller.key(),
-        config.allow_mint_program_caller,
+        ctx.accounts.external_mint_program_caller.key(),
+        config.allowed_external_mint_program,
         CustomErrorCode::InvalidMintProgramCaller
     );
 
@@ -519,16 +525,16 @@ pub fn program_mint_to(ctx: Context<ProgramMintTo>, amount: u64) -> Result<()> {
         amount,
     )?;
 
-    msg!("Emitting ProgramMinted");
-    emit!(ProgramMinted {
+    msg!("Emitting ExternalProgramMintEvent");
+    emit!(ExternalProgramMintEvent {
         admin: ctx.accounts.signer.key(),
-        mint_program_caller: ctx.accounts.mint_program_caller.key(),
+        external_mint_program_caller: ctx.accounts.external_mint_program_caller.key(),
         destination: ctx.accounts.destination.key(),
-        amount,
+        amount: amount,
         mint: ctx.accounts.mint.key(),
         vault: ctx.accounts.config.vault,
     });
-    msg!("Emitted ProgramMinted");
+    msg!("Emitted ExternalProgramMintEvent");
 
     Ok(())
 }

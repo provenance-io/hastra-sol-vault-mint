@@ -10,7 +10,7 @@ pub struct Config {
     pub redeem_vault: Pubkey,
     pub bump: u8,
     pub paused: bool,
-    pub allow_mint_program_caller: Pubkey
+    pub allowed_external_mint_program: Pubkey
 }
 
 impl Config {

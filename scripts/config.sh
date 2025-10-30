@@ -55,19 +55,11 @@ show_current_settings() {
     printf "  %-30s %s\n" "$name:" "$value"
   done
   echo ""
-
 }
 
 show_current_settings
 
-case "$SOLANA_NETWORK" in
-  devnet) SOLANA_URL="https://api.devnet.solana.com" ;;
-  mainnet-beta) SOLANA_URL="https://api.mainnet-beta.solana.com" ;;
-  testnet) SOLANA_URL="https://api.testnet.solana.com" ;;
-  *) echo "Invalid network"; exit 1 ;;
-esac
-
-# get the keypair from solana config
+# get the keypair and rpc url from solana config
 CONFIG_FILE="$HOME/.config/solana/cli/config.yml"
 if [ -f "$CONFIG_FILE" ]; then
   SOLANA_KEYPAIR=$(grep 'keypair_path:' "$CONFIG_FILE" | awk '{print $2}')
@@ -75,9 +67,18 @@ if [ -f "$CONFIG_FILE" ]; then
     KEYPAIR="$SOLANA_KEYPAIR"
     update_history_var "KEYPAIR"
   fi
+  JSON_RPC_URL=$(grep 'json_rpc_url:' "$CONFIG_FILE" | awk '{print $2}')
+  if [ -z "$SOLANA_URL" ]; then
+    SOLANA_URL="$JSON_RPC_URL"
+    update_history_var "SOLANA_URL"
+  fi
 fi
 
+echo "Solana Keypair from config: $KEYPAIR"
+echo "Solana RPC URL from config: $SOLANA_URL"
+
 prompt_with_default KEYPAIR "Enter path to Solana wallet keypair"
+prompt_with_default SOLANA_URL "Enter Solana RPC URL"
 
 if [ -z "$VAULT_MINT" ]; then
   prompt_with_default VAULT_MINT "Enter Vault Token Mint address (the token accepted for swap)"
@@ -109,7 +110,6 @@ create_redeem_vault_token_account() {
   sed -i.bak "/^REDEEM_VAULT_TOKEN_ACCOUNT=/d" "$HISTORY_FILE"
   echo "REDEEM_VAULT_TOKEN_ACCOUNT=\"$REDEEM_VAULT_TOKEN_ACCOUNT\"" >> "$HISTORY_FILE"
 }
-
 
 set_new_program_id() {
   OLD_PROGRAM_ID=$(grep -oE 'declare_id!\("([A-Za-z0-9]+)"\);' ../programs/hastra-sol-vault-mint/src/lib.rs | grep -oE '\"([A-Za-z0-9]+)\"' | tr -d '"')
@@ -185,6 +185,9 @@ initialize_program() {
   if [ -z "$REDEEM_VAULT_TOKEN_ACCOUNT" ]; then
     prompt_with_default REDEEM_VAULT_TOKEN_ACCOUNT "Enter Redeem Vault Token Account address"
   fi
+  if [ -z "$ALLOW_MINT_PROGRAM_CALLER_ID" ]; then
+    prompt_with_default $ALLOW_MINT_PROGRAM_CALLER_ID "Enter external program ID allowed to call mint"
+  fi
 
   INITIALIZE=$(
     yarn run ts-node scripts/initialize.ts \
@@ -193,7 +196,8 @@ initialize_program() {
     --redeem_vault_token_account "$REDEEM_VAULT_TOKEN_ACCOUNT" \
     --mint "$MINT_TOKEN" \
     --freeze_administrators "$FREEZE_ADMINISTRATORS" \
-    --rewards_administrators "$REWARDS_ADMINISTRATORS")
+    --rewards_administrators "$REWARDS_ADMINISTRATORS" \
+    --allow_mint_program_caller_id "$ALLOW_MINT_PROGRAM_CALLER_ID")
 
   echo "$INITIALIZE"
   CONFIG_PDA=$(echo $INITIALIZE | grep -oE 'Config PDA: ([A-Za-z0-9]+)' | awk '{print $NF}')

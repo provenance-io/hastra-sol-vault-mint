@@ -402,7 +402,7 @@ pub struct CompleteRedeem<'info> {
 }
 
 #[derive(Accounts)]
-pub struct ProgramMintTo<'info> {
+pub struct ExternalProgramMint<'info> {
     #[account(
         seeds = [b"config"],
         bump = config.bump,
@@ -410,7 +410,7 @@ pub struct ProgramMintTo<'info> {
     pub config: Account<'info, Config>,
 
     /// CHECK: The caller program should be passed from CPI
-    pub mint_program_caller: AccountInfo<'info>,
+    pub external_mint_program_caller: AccountInfo<'info>,
 
     #[account(
         mut,
@@ -429,7 +429,10 @@ pub struct ProgramMintTo<'info> {
     #[account()]
     pub signer: Signer<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = destination.mint == mint.key() @ CustomErrorCode::InvalidMint
+    )]
     pub destination: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
