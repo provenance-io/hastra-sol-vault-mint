@@ -39,13 +39,12 @@ impl ClaimRecord {
 pub struct RedemptionRequest {
     pub user: Pubkey,
     pub amount: u64,
-    pub vault_mint: Pubkey,
     pub mint: Pubkey,
     pub bump: u8,
 }
 
 impl RedemptionRequest {
-    pub const LEN: usize = 8 + 32 + 8 + 32 + 32 + 1;
+    pub const LEN: usize = 8 + 32 + 8 + 32 + 1;
 }
 
 /// One Merkle proof element.
