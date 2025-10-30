@@ -34,3 +34,12 @@ pub struct RedeemCompleted {
     pub vault: Pubkey,
 }
 
+#[event]
+pub struct ProgramMinted {
+    pub admin: Pubkey,
+    pub mint_program_caller: Pubkey,
+    pub destination: Pubkey,
+    pub amount: u64,
+    pub mint: Pubkey,
+    pub vault: Pubkey,
+}

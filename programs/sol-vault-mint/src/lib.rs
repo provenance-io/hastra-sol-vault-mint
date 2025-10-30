@@ -51,6 +51,8 @@ pub mod hastra_sol_vault_mint {
         mint: Pubkey,
         freeze_administrators: Vec<Pubkey>,
         rewards_administrators: Vec<Pubkey>,
+        allow_mint_program_caller: Pubkey,
+        
     ) -> Result<()> {
         processor::initialize(
             ctx,
@@ -58,6 +60,7 @@ pub mod hastra_sol_vault_mint {
             mint,
             freeze_administrators,
             rewards_administrators,
+            allow_mint_program_caller
         )
     }
 
@@ -134,4 +137,9 @@ pub mod hastra_sol_vault_mint {
     ) -> Result<()> {
         processor::claim_rewards(ctx, amount, proof)
     }
+    
+    /// Allows an external authorized program to mint tokens to a specified account.
+    pub fn program_mint_to(ctx: Context<ProgramMintTo>, amount: u64) -> Result<()> {
+        processor::program_mint_to(ctx, amount)
+    }   
 }

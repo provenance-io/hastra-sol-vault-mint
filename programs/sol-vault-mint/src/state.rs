@@ -10,12 +10,13 @@ pub struct Config {
     pub redeem_vault: Pubkey,
     pub bump: u8,
     pub paused: bool,
+    pub allow_mint_program_caller: Pubkey
 }
 
 impl Config {
     // The vectors have a max length of 5 each and must include the Borsh overhead of 4 bytes for
     // the length prefix.
-    pub const LEN: usize = 8 + 32 + 32 + (4 + (32 * 5)) + (4 + (32 * 5)) + 32 + 32 + 1 + 1;
+    pub const LEN: usize = 8 + 32 + 32 + (4 + (32 * 5)) + (4 + (32 * 5)) + 32 + 32 + 1 + 1 + 32;
 }
 
 #[account]

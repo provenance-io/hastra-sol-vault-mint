@@ -401,3 +401,36 @@ pub struct CompleteRedeem<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+#[derive(Accounts)]
+pub struct ProgramMintTo<'info> {
+    #[account(
+        seeds = [b"config"],
+        bump = config.bump,
+    )]
+    pub config: Account<'info, Config>,
+
+    /// CHECK: The caller program should be passed from CPI
+    pub mint_program_caller: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        constraint = mint.key() == config.mint @ CustomErrorCode::InvalidMint
+    )]
+    pub mint: Account<'info, Mint>,
+
+    /// CHECK: This is a PDA that acts as mint authority, validated by seeds constraint
+    #[account(
+        seeds = [b"mint_authority"],
+        bump,
+        constraint = mint_authority.key() == mint.mint_authority.unwrap() @ CustomErrorCode::InvalidMintAuthority
+    )]
+    pub mint_authority: UncheckedAccount<'info>,
+
+    #[account()]
+    pub signer: Signer<'info>,
+
+    #[account(mut)]
+    pub destination: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+}

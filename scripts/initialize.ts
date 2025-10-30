@@ -42,7 +42,11 @@ const args = yargs(process.argv.slice(2))
         description: "Comma separated list of administrator public keys that can execute user distribution rewards.",
         required: true,
     })
-
+    .option("allow_mint_program_caller_id", {
+        type: "string",
+        description: "Allowed program caller id for minting",
+        required: true,
+    })
     .parseSync();
 
 const main = async () => {
@@ -88,6 +92,8 @@ const main = async () => {
         throw new Error(`Number of rewards administrators (${rewardsAdministrators.length}) exceeds maximum 5`);
     }
 
+    const allowedMintProgramId = new PublicKey(args.allow_mint_program_caller_id);
+
     console.log("Program ID:", program.programId.toBase58());
     console.log("Vault (accepted token):", vault.toBase58());
     console.log("Mint (token to be minted):", mint.toBase58());
@@ -96,6 +102,7 @@ const main = async () => {
     console.log("Mint Authority PDA:", mintAuthorityPda.toBase58());
     console.log("Freeze Authority PDA:", freezeAuthorityPda.toBase58());
     console.log("Freeze Administrators:", freezeAdministrators.map((a) => a.toBase58()));
+    console.log("Allowed Mint Program ID:", allowedMintProgramId.toBase58());
     console.log("Rewards Administrators:", rewardsAdministrators.map((a) => a.toBase58()));
     console.log("Redeem Vault Token Account:", redeemVaultTokenAccount.toBase58());
     console.log("Redeem Vault Authority PDA:", redeemVaultAuthorityPda.toBase58());
@@ -103,7 +110,7 @@ const main = async () => {
 
     // Call initialize
     await program.methods
-        .initialize(vault, mint, freezeAdministrators, rewardsAdministrators)
+        .initialize(vault, mint, freezeAdministrators, rewardsAdministrators, allowedMintProgramId)
         .accounts({
             signer: provider.wallet.publicKey,
             vaultTokenAccount: vaultTokenAccount,

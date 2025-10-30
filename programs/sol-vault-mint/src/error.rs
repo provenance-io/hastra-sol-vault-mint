@@ -54,4 +54,6 @@ pub enum CustomErrorCode {
     VaultAndMintCannotBeSame = 25,
     #[msg("Protocol is paused")]
     ProtocolPaused = 26,
+    #[msg("Invalid program calling mint")]
+    InvalidMintProgramCaller = 27,
 }

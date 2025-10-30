@@ -14,6 +14,7 @@ pub fn initialize(
     mint: Pubkey,
     freeze_administrators: Vec<Pubkey>,
     rewards_administrators: Vec<Pubkey>,
+    allow_mint_program_caller: Pubkey
 ) -> Result<()> {
     msg!("Initializing with vault_mint: {}", vault_mint);
     msg!("Vault mint account: {}", ctx.accounts.vault_mint.key());
@@ -41,6 +42,7 @@ pub fn initialize(
     config.freeze_administrators = freeze_administrators;
     config.rewards_administrators = rewards_administrators;
     config.vault_authority = ctx.accounts.vault_token_account.owner;
+    config.allow_mint_program_caller = allow_mint_program_caller;
     config.bump = ctx.bumps.config;
 
     // The redeem vault token account must be owned by the program-derived address (PDA)
@@ -480,6 +482,53 @@ pub fn claim_rewards(ctx: Context<ClaimRewards>, amount: u64, proof: Vec<ProofNo
         vault: ctx.accounts.config.vault,
     });
     msg!("Emitted RewardsClaimed");
+
+    Ok(())
+}
+
+// Allows an external program (specified in config) to mint tokens to a destination account
+pub fn program_mint_to(ctx: Context<ProgramMintTo>, amount: u64) -> Result<()> {
+    let config = &ctx.accounts.config;
+
+    // Ensure the signer is a rewards administrator
+    require!(
+        config.rewards_administrators.contains(&ctx.accounts.signer.key()),
+        CustomErrorCode::InvalidRewardsAdministrator
+    );
+
+    // Ensure the caller is the allowed program
+    require_keys_eq!(
+        ctx.accounts.mint_program_caller.key(),
+        config.allow_mint_program_caller,
+        CustomErrorCode::InvalidMintProgramCaller
+    );
+
+    let seeds: &[&[u8]] = &[b"mint_authority", &[ctx.bumps.mint_authority]];
+    let signer = &[&seeds[..]];
+    let cpi_accounts = MintTo {
+        mint: ctx.accounts.mint.to_account_info(),
+        to: ctx.accounts.destination.to_account_info(),
+        authority: ctx.accounts.mint_authority.to_account_info(),
+    };
+    token::mint_to(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            signer,
+        ),
+        amount,
+    )?;
+
+    msg!("Emitting ProgramMinted");
+    emit!(ProgramMinted {
+        admin: ctx.accounts.signer.key(),
+        mint_program_caller: ctx.accounts.mint_program_caller.key(),
+        destination: ctx.accounts.destination.key(),
+        amount,
+        mint: ctx.accounts.mint.key(),
+        vault: ctx.accounts.config.vault,
+    });
+    msg!("Emitted ProgramMinted");
 
     Ok(())
 }
